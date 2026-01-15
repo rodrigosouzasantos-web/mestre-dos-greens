@@ -12,7 +12,7 @@ st.set_page_config(page_title="Mestre dos Greens PRO", page_icon="⚽", layout="
 URLS_LIGAS = {
     "Jogos de Hoje": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/todays_matches/todays_matches.csv",
     # Cole seus links RAW aqui embaixo:
-    "Argentina_Primera_División_2016-2024": https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv" 
+    "Argentina_Primera_División_2016-2024": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv", 
 }
 
 # --- FUNÇÃO DE CARREGAMENTO SEGURA ---
