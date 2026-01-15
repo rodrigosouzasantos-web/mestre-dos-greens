@@ -193,4 +193,94 @@ if df_recent is not None:
                 with c1:
                     st.markdown("##### 🌍 Geral")
                     st.metric("Jogos", len(df_all))
-                    st.metric("Média G
+                    st.metric("Média Gols (Total)", f"{(df_all['FTHG'] + df_all['FTAG']).mean():.2f}")
+                    st.metric("BTTS %", f"{((df_all['FTHG']>0) & (df_all['FTAG']>0)).mean() * 100:.1f}%")
+                with c2:
+                    st.markdown("##### 🏠 Em Casa")
+                    if not df_home.empty:
+                        st.write(f"**Gols Pró:** {df_home['FTHG'].mean():.2f}")
+                        st.write(f"**Gols Sofridos:** {df_home['FTAG'].mean():.2f}")
+                        st.write(f"**Cantos Pró:** {df_home['HC'].mean():.1f}")
+                    else: st.info("Sem dados em casa")
+                with c3:
+                    st.markdown("##### ✈️ Fora de Casa")
+                    if not df_away.empty:
+                        st.write(f"**Gols Pró:** {df_away['FTAG'].mean():.2f}")
+                        st.write(f"**Gols Sofridos:** {df_away['FTHG'].mean():.2f}")
+                        st.write(f"**Cantos Pró:** {df_away['AC'].mean():.1f}")
+                    else: st.info("Sem dados fora")
+                
+                st.divider()
+                st.subheader("📈 Comparativo: Casa x Fora")
+                data_chart = pd.DataFrame({
+                    'Situação': ['Casa', 'Casa', 'Fora', 'Fora'],
+                    'Tipo': ['Gols Feitos', 'Gols Sofridos', 'Gols Feitos', 'Gols Sofridos'],
+                    'Média': [df_home['FTHG'].mean() if not df_home.empty else 0, df_home['FTAG'].mean() if not df_home.empty else 0,
+                              df_away['FTAG'].mean() if not df_away.empty else 0, df_away['FTHG'].mean() if not df_away.empty else 0]
+                })
+                fig = px.bar(data_chart, x='Situação', y='Média', color='Tipo', barmode='group', height=300, color_discrete_sequence=['#00ff00', '#ff0000'])
+                st.plotly_chart(fig, use_container_width=True)
+                st.subheader("📜 Últimas 10 Partidas")
+                st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HC', 'AC']].head(10), hide_index=True, use_container_width=True)
+
+    # ----------------------------------------------------
+    # MÓDULO 3: RAIO-X LIGAS (VISUAL UPGRADE)
+    # ----------------------------------------------------
+    elif menu == "🏆 Raio-X Ligas (Visual)":
+        st.header("🌎 Inteligência de Campeonatos")
+        
+        # 1. Processamento dos Dados
+        stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
+            'Jogos': len(x),
+            'Média Gols': (x['FTHG']+x['FTAG']).mean(),
+            'Over 2.5 (%)': ((x['FTHG']+x['FTAG']) > 2.5).mean() * 100,
+            'BTTS (%)': ((x['FTHG']>0) & (x['FTAG']>0)).mean() * 100,
+            'Média Cantos': (x['HC']+x['AC']).mean()
+        })).sort_values('Média Gols', ascending=False).reset_index()
+        
+        # 2. KPIs de Destaque (Top Ligas)
+        top_gols = stats_liga.iloc[0]
+        top_cantos = stats_liga.sort_values('Média Cantos', ascending=False).iloc[0]
+        
+        k1, k2, k3 = st.columns(3)
+        k1.metric("🔥 Liga Mais Goleadora", top_gols['League_Custom'], f"{top_gols['Média Gols']:.2f} Gols/Jogo")
+        k2.metric("🚩 Liga com Mais Cantos", top_cantos['League_Custom'], f"{top_cantos['Média Cantos']:.1f} Cantos/Jogo")
+        k3.metric("📊 Total Ligas Analisadas", len(stats_liga))
+        st.divider()
+
+        # 3. Gráficos Interativos (Abas)
+        tab_gols, tab_cantos = st.tabs(["⚽ Análise de Gols", "🚩 Análise de Cantos"])
+        
+        with tab_gols:
+            st.subheader("Comparativo: Gols e Over 2.5")
+            fig_gols = px.bar(stats_liga, x='League_Custom', y='Média Gols', 
+                             color='Over 2.5 (%)', title="Média de Gols por Liga (Cor = % Over 2.5)",
+                             color_continuous_scale='RdYlGn', height=400)
+            st.plotly_chart(fig_gols, use_container_width=True)
+            
+        with tab_cantos:
+            st.subheader("Comparativo: Escanteios")
+            fig_cantos = px.bar(stats_liga.sort_values('Média Cantos', ascending=False), 
+                                x='League_Custom', y='Média Cantos', 
+                                title="Média de Escanteios por Liga",
+                                color_discrete_sequence=['#00ccff'], height=400)
+            st.plotly_chart(fig_cantos, use_container_width=True)
+
+        # 4. Tabela Turbinada
+        st.subheader("📋 Tabela Detalhada")
+        st.dataframe(
+            stats_liga,
+            column_config={
+                "League_Custom": st.column_config.TextColumn("Campeonato"),
+                "Média Gols": st.column_config.NumberColumn(format="%.2f ⚽"),
+                "Over 2.5 (%)": st.column_config.ProgressColumn("Over 2.5", format="%.1f%%", min_value=0, max_value=100),
+                "BTTS (%)": st.column_config.ProgressColumn("BTTS (Ambas)", format="%.1f%%", min_value=0, max_value=100),
+                "Média Cantos": st.column_config.NumberColumn(format="%.1f 🚩"),
+            },
+            hide_index=True,
+            use_container_width=True,
+            height=500
+        )
+
+else:
+    st.error("Erro crítico ao carregar dados.")
