@@ -181,8 +181,18 @@ if df_recent is not None:
     # ----------------------------------------------------
     elif menu == "⚽ Analisador de Times (Detalhado)":
         st.header("🕵️‍♂️ Scout Profundo de Equipes")
+        
+        # BUSCA INTELIGENTE DE TIMES
         all_teams = sorted(list(set(df_recent['HomeTeam'].unique()) | set(df_recent['AwayTeam'].unique())))
-        team = st.selectbox("Escolha o Time:", all_teams)
+        
+        # O campo agora começa vazio (index=None) e tem placeholder
+        team = st.selectbox(
+            "🔍 Pesquise o Time (Digite para filtrar):", 
+            all_teams, 
+            index=None, 
+            placeholder="Ex: Flamengo, Real Madrid..."
+        )
+        
         if team:
             df_home = df_recent[df_recent['HomeTeam'] == team]
             df_away = df_recent[df_recent['AwayTeam'] == team]
@@ -224,12 +234,12 @@ if df_recent is not None:
                 st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HC', 'AC']].head(10), hide_index=True, use_container_width=True)
 
     # ----------------------------------------------------
-    # MÓDULO 3: RAIO-X LIGAS (VISUAL UPGRADE)
+    # MÓDULO 3: RAIO-X LIGAS (VISUAL UPGRADE + FILTRO)
     # ----------------------------------------------------
     elif menu == "🏆 Raio-X Ligas (Visual)":
         st.header("🌎 Inteligência de Campeonatos")
         
-        # 1. Processamento dos Dados
+        # 1. Processamento Inicial
         stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
             'Jogos': len(x),
             'Média Gols': (x['FTHG']+x['FTAG']).mean(),
@@ -237,50 +247,65 @@ if df_recent is not None:
             'BTTS (%)': ((x['FTHG']>0) & (x['FTAG']>0)).mean() * 100,
             'Média Cantos': (x['HC']+x['AC']).mean()
         })).sort_values('Média Gols', ascending=False).reset_index()
-        
-        # 2. KPIs de Destaque (Top Ligas)
-        top_gols = stats_liga.iloc[0]
-        top_cantos = stats_liga.sort_values('Média Cantos', ascending=False).iloc[0]
-        
-        k1, k2, k3 = st.columns(3)
-        k1.metric("🔥 Liga Mais Goleadora", top_gols['League_Custom'], f"{top_gols['Média Gols']:.2f} Gols/Jogo")
-        k2.metric("🚩 Liga com Mais Cantos", top_cantos['League_Custom'], f"{top_cantos['Média Cantos']:.1f} Cantos/Jogo")
-        k3.metric("📊 Total Ligas Analisadas", len(stats_liga))
-        st.divider()
 
-        # 3. Gráficos Interativos (Abas)
-        tab_gols, tab_cantos = st.tabs(["⚽ Análise de Gols", "🚩 Análise de Cantos"])
-        
-        with tab_gols:
-            st.subheader("Comparativo: Gols e Over 2.5")
-            fig_gols = px.bar(stats_liga, x='League_Custom', y='Média Gols', 
-                             color='Over 2.5 (%)', title="Média de Gols por Liga (Cor = % Over 2.5)",
-                             color_continuous_scale='RdYlGn', height=400)
-            st.plotly_chart(fig_gols, use_container_width=True)
-            
-        with tab_cantos:
-            st.subheader("Comparativo: Escanteios")
-            fig_cantos = px.bar(stats_liga.sort_values('Média Cantos', ascending=False), 
-                                x='League_Custom', y='Média Cantos', 
-                                title="Média de Escanteios por Liga",
-                                color_discrete_sequence=['#00ccff'], height=400)
-            st.plotly_chart(fig_cantos, use_container_width=True)
-
-        # 4. Tabela Turbinada
-        st.subheader("📋 Tabela Detalhada")
-        st.dataframe(
-            stats_liga,
-            column_config={
-                "League_Custom": st.column_config.TextColumn("Campeonato"),
-                "Média Gols": st.column_config.NumberColumn(format="%.2f ⚽"),
-                "Over 2.5 (%)": st.column_config.ProgressColumn("Over 2.5", format="%.1f%%", min_value=0, max_value=100),
-                "BTTS (%)": st.column_config.ProgressColumn("BTTS (Ambas)", format="%.1f%%", min_value=0, max_value=100),
-                "Média Cantos": st.column_config.NumberColumn(format="%.1f 🚩"),
-            },
-            hide_index=True,
-            use_container_width=True,
-            height=500
+        # 2. FILTRO DE LIGAS (Novo!)
+        ligas_disponiveis = sorted(stats_liga['League_Custom'].unique())
+        ligas_selecionadas = st.multiselect(
+            "🔍 Filtrar Ligas (Digite para buscar e comparar):", 
+            ligas_disponiveis,
+            placeholder="Selecione uma ou mais ligas para filtrar..."
         )
+        
+        # Aplica o filtro se houver seleção
+        if ligas_selecionadas:
+            stats_liga = stats_liga[stats_liga['League_Custom'].isin(ligas_selecionadas)]
+
+        if not stats_liga.empty:
+            # 3. KPIs de Destaque (Baseado no Filtro)
+            top_gols = stats_liga.sort_values('Média Gols', ascending=False).iloc[0]
+            top_cantos = stats_liga.sort_values('Média Cantos', ascending=False).iloc[0]
+            
+            k1, k2, k3 = st.columns(3)
+            k1.metric("🔥 Mais Goleadora (Filtro)", top_gols['League_Custom'], f"{top_gols['Média Gols']:.2f} Gols/Jogo")
+            k2.metric("🚩 Mais Cantos (Filtro)", top_cantos['League_Custom'], f"{top_cantos['Média Cantos']:.1f} Cantos/Jogo")
+            k3.metric("📊 Ligas Exibidas", len(stats_liga))
+            st.divider()
+
+            # 4. Gráficos
+            tab_gols, tab_cantos = st.tabs(["⚽ Análise de Gols", "🚩 Análise de Cantos"])
+            
+            with tab_gols:
+                st.subheader("Comparativo: Gols e Over 2.5")
+                fig_gols = px.bar(stats_liga, x='League_Custom', y='Média Gols', 
+                                 color='Over 2.5 (%)', title="Média de Gols por Liga (Cor = % Over 2.5)",
+                                 color_continuous_scale='RdYlGn', height=400)
+                st.plotly_chart(fig_gols, use_container_width=True)
+                
+            with tab_cantos:
+                st.subheader("Comparativo: Escanteios")
+                fig_cantos = px.bar(stats_liga.sort_values('Média Cantos', ascending=False), 
+                                    x='League_Custom', y='Média Cantos', 
+                                    title="Média de Escanteios por Liga",
+                                    color_discrete_sequence=['#00ccff'], height=400)
+                st.plotly_chart(fig_cantos, use_container_width=True)
+
+            # 5. Tabela
+            st.subheader("📋 Tabela Detalhada")
+            st.dataframe(
+                stats_liga,
+                column_config={
+                    "League_Custom": st.column_config.TextColumn("Campeonato"),
+                    "Média Gols": st.column_config.NumberColumn(format="%.2f ⚽"),
+                    "Over 2.5 (%)": st.column_config.ProgressColumn("Over 2.5", format="%.1f%%", min_value=0, max_value=100),
+                    "BTTS (%)": st.column_config.ProgressColumn("BTTS (Ambas)", format="%.1f%%", min_value=0, max_value=100),
+                    "Média Cantos": st.column_config.NumberColumn(format="%.1f 🚩"),
+                },
+                hide_index=True,
+                use_container_width=True,
+                height=500
+            )
+        else:
+            st.warning("Nenhuma liga selecionada.")
 
 else:
     st.error("Erro crítico ao carregar dados.")
