@@ -1,0 +1,28 @@
+name: Mestre dos Greens - Alerta Diário
+
+on:
+  schedule:
+    # Roda todo dia às 11:00 UTC (08:00 Brasília)
+    - cron: '0 11 * * *'
+  workflow_dispatch: # Botão para testar manualmente
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalar bibliotecas
+        run: |
+          pip install -r requirements.txt
+
+      - name: Executar Robô
+        run: |
+          python app.py
