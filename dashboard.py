@@ -18,7 +18,8 @@ st.markdown("""
     <style>
     .metric-card {background-color: #1e2130; border: 1px solid #313547; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 2px 2px 10px rgba(0,0,0,0.2);}
     .stProgress > div > div > div > div { background-color: #00ff00; }
-    div[data-testid="stMetricValue"] { font-size: 20px; }
+    div[data-testid="stMetricValue"] { font-size: 22px; color: #00ff00; }
+    div[data-testid="stMetricLabel"] { font-size: 16px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -69,22 +70,17 @@ def load_data():
         try:
             response = requests.get(url)
             if response.status_code != 200: continue
-            
             content = response.content.decode('utf-8')
-            try:
-                df = pd.read_csv(io.StringIO(content), low_memory=False)
-            except:
-                df = pd.read_csv(io.StringIO(content), sep=';', low_memory=False)
+            try: df = pd.read_csv(io.StringIO(content), low_memory=False)
+            except: df = pd.read_csv(io.StringIO(content), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
             rename_map = {
-                'date': 'Date', 'date_unix': 'DateUnix',
-                'home_name': 'HomeTeam', 'away_name': 'AwayTeam', 'home': 'HomeTeam', 'away': 'AwayTeam',
+                'date': 'Date', 'date_unix': 'DateUnix', 'home_name': 'HomeTeam', 'away_name': 'AwayTeam', 'home': 'HomeTeam', 'away': 'AwayTeam',
                 'fthg': 'FTHG', 'ftag': 'FTAG', 'homegoalcount': 'FTHG', 'awaygoalcount': 'FTAG',
                 'team_a_corners': 'HC', 'team_b_corners': 'AC', 'corners_home': 'HC', 'corners_away': 'AC'
             }
             df.rename(columns=rename_map, inplace=True)
-            
             if 'Date' not in df.columns:
                 if 'DateUnix' in df.columns: df['Date'] = pd.to_datetime(df['DateUnix'], unit='s')
                 else: continue
@@ -94,20 +90,15 @@ def load_data():
             for c in cols_needed: 
                 if c not in df.columns: df[c] = 0
             all_dfs.append(df[cols_needed])
-            
         except Exception: pass
         my_bar.progress((i + 1) / total_files)
     
     my_bar.empty()
-    
     if not all_dfs: return None, None
-    
     full_df = pd.concat(all_dfs, ignore_index=True)
     full_df['Date'] = pd.to_datetime(full_df['Date'], dayfirst=True, errors='coerce')
     df_recent = full_df[full_df['Date'].dt.year >= 2023].copy()
-    
-    for c in ['FTHG', 'FTAG', 'HC', 'AC']:
-        df_recent[c] = pd.to_numeric(df_recent[c], errors='coerce').fillna(0)
+    for c in ['FTHG', 'FTAG', 'HC', 'AC']: df_recent[c] = pd.to_numeric(df_recent[c], errors='coerce').fillna(0)
 
     try:
         df_today = pd.read_csv(URL_HOJE)
@@ -117,24 +108,19 @@ def load_data():
         if 'HomeTeam' not in df_today.columns:
              df_today['HomeTeam'] = df_today.iloc[:, 0]
              df_today['AwayTeam'] = df_today.iloc[:, 1]
-    except:
-        df_today = pd.DataFrame()
+    except: df_today = pd.DataFrame()
         
     return df_recent, df_today
 
 # --- FUNÇÃO DE TIPS ---
 def gerar_tip_visual(stats):
     tips = []
-    # Lógica de Tips (Pode ajustar os valores)
     if stats['Over25'] >= 70: tips.append("⚽ Over 2.5")
     elif stats['Over25'] <= 30: tips.append("🛡️ Under 2.5")
-    
     if stats['BTTS'] >= 65: tips.append("🤝 BTTS")
-    
     if stats['Cantos'] >= 10.5: tips.append("🚩 +10 Cantos")
     elif stats['Cantos'] <= 8.0: tips.append("📉 -9 Cantos")
-    
-    if not tips: return "⚠️ Jogo Sem Padrão"
+    if not tips: return "⚠️ Sem Padrão Claro"
     return " | ".join(tips)
 
 # --- APP ---
@@ -145,25 +131,19 @@ with st.spinner("Analisando dados globais..."):
 
 if df_recent is not None:
     st.sidebar.markdown("## 🧭 Menu")
-    menu = st.sidebar.radio("", ["🎯 Jogos de Hoje (+ Tips)", "⚽ Analisador de Times (Detalhado)", "🏆 Raio-X Ligas"])
+    menu = st.sidebar.radio("", ["🎯 Jogos de Hoje (+ Tips)", "⚽ Analisador de Times (Detalhado)", "🏆 Raio-X Ligas (Visual)"])
     
     # ----------------------------------------------------
     # MÓDULO 1: JOGOS DE HOJE + TIPS
     # ----------------------------------------------------
     if menu == "🎯 Jogos de Hoje (+ Tips)":
         st.header("🎯 Grade do Dia & Tips da IA")
-        
         if not df_today.empty:
             lista_final = []
-            
             for idx, row in df_today.iterrows():
                 h, a = row.get('HomeTeam', 'Casa'), row.get('AwayTeam', 'Fora')
-                
-                # Cálculo de Médias
                 stats_h = df_recent[df_recent['HomeTeam'] == h]
                 stats_a = df_recent[df_recent['AwayTeam'] == a]
-                
-                # Se não achar exato, tenta conter o nome
                 if len(stats_h) < 3: stats_h = df_recent[df_recent['HomeTeam'].str.contains(h, case=False, na=False)]
                 if len(stats_a) < 3: stats_a = df_recent[df_recent['AwayTeam'].str.contains(a, case=False, na=False)]
                 
@@ -171,29 +151,19 @@ if df_recent is not None:
                     over25 = (((stats_h['FTHG']+stats_h['FTAG']) > 2.5).mean() + ((stats_a['FTHG']+stats_a['FTAG']) > 2.5).mean()) / 2 * 100
                     btts = (((stats_h['FTHG']>0)&(stats_h['FTAG']>0)).mean() + ((stats_a['FTHG']>0)&(stats_a['FTAG']>0)).mean()) / 2 * 100
                     cantos = ((stats_h['HC']+stats_h['AC']).mean() + (stats_a['HC']+stats_a['AC']).mean()) / 2
-                    
                     score = (over25*0.4) + (btts*0.3) + (min(cantos,12)/12*30)
-                    
                     tip_txt = gerar_tip_visual({'Over25': over25, 'BTTS': btts, 'Cantos': cantos})
                     
                     lista_final.append({
-                        "Liga": row.get('League', '-'),
-                        "Hora": row.get('Time', '-'),
-                        "Jogo": f"{h} x {a}",
-                        "Indicação (Tip)": tip_txt,
-                        "Over 2.5": over25,
-                        "BTTS": btts,
-                        "Cantos": cantos,
-                        "Score": score
+                        "Liga": row.get('League', '-'), "Hora": row.get('Time', '-'),
+                        "Jogo": f"{h} x {a}", "Indicação (Tip)": tip_txt,
+                        "Over 2.5": over25, "BTTS": btts, "Cantos": cantos, "Score": score
                     })
             
             if lista_final:
                 df_front = pd.DataFrame(lista_final).sort_values('Score', ascending=False)
-                
-                # Filtro
                 min_score = st.slider("⚖️ Filtrar Confiança (Score)", 0, 100, 50)
                 df_show = df_front[df_front['Score'] >= min_score]
-                
                 st.dataframe(
                     df_show,
                     column_config={
@@ -201,108 +171,26 @@ if df_recent is not None:
                         "Over 2.5": st.column_config.NumberColumn(format="%.1f%%"),
                         "BTTS": st.column_config.NumberColumn(format="%.1f%%"),
                         "Cantos": st.column_config.NumberColumn(format="%.1f"),
-                    },
-                    hide_index=True,
-                    use_container_width=True
+                    }, hide_index=True, use_container_width=True
                 )
-            else:
-                st.info("Jogos encontrados, mas sem histórico suficiente para gerar Tips.")
-        else:
-            st.warning("Sem jogos na grade hoje.")
+            else: st.info("Jogos encontrados, mas sem histórico suficiente para gerar Tips.")
+        else: st.warning("Sem jogos na grade hoje.")
 
     # ----------------------------------------------------
     # MÓDULO 2: ANALISADOR DE TIMES (HOME/AWAY)
     # ----------------------------------------------------
     elif menu == "⚽ Analisador de Times (Detalhado)":
         st.header("🕵️‍♂️ Scout Profundo de Equipes")
-        
         all_teams = sorted(list(set(df_recent['HomeTeam'].unique()) | set(df_recent['AwayTeam'].unique())))
         team = st.selectbox("Escolha o Time:", all_teams)
-        
         if team:
-            # Filtros
             df_home = df_recent[df_recent['HomeTeam'] == team]
             df_away = df_recent[df_recent['AwayTeam'] == team]
             df_all = pd.concat([df_home, df_away]).sort_values('Date', ascending=False)
-            
             if not df_all.empty:
                 st.markdown(f"### 📊 Raio-X: {team}")
-                
-                # --- MÉTRICAS CASA vs FORA ---
-                col1, col2, col3 = st.columns(3)
-                
-                # GERAL
-                with col1:
-                    st.markdown("##### 🌍 Geral (Todos)")
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.markdown("##### 🌍 Geral")
                     st.metric("Jogos", len(df_all))
-                    media_gols = (df_all['FTHG'] + df_all['FTAG']).mean()
-                    btts_rate = ((df_all['FTHG']>0) & (df_all['FTAG']>0)).mean() * 100
-                    st.metric("Média Gols (Total)", f"{media_gols:.2f}")
-                    st.metric("BTTS %", f"{btts_rate:.1f}%")
-
-                # EM CASA
-                with col2:
-                    st.markdown("##### 🏠 Em Casa")
-                    if not df_home.empty:
-                        gols_pro = df_home['FTHG'].mean()
-                        gols_contra = df_home['FTAG'].mean()
-                        cantos_pro = df_home['HC'].mean()
-                        
-                        st.write(f"**Gols Pró:** {gols_pro:.2f}")
-                        st.write(f"**Gols Sofridos:** {gols_contra:.2f}")
-                        st.write(f"**Cantos Pró:** {cantos_pro:.1f}")
-                    else:
-                        st.info("Sem dados em casa")
-
-                # FORA
-                with col3:
-                    st.markdown("##### ✈️ Fora de Casa")
-                    if not df_away.empty:
-                        gols_pro_a = df_away['FTAG'].mean()
-                        gols_contra_a = df_away['FTHG'].mean()
-                        cantos_pro_a = df_away['AC'].mean()
-                        
-                        st.write(f"**Gols Pró:** {gols_pro_a:.2f}")
-                        st.write(f"**Gols Sofridos:** {gols_contra_a:.2f}")
-                        st.write(f"**Cantos Pró:** {cantos_pro_a:.1f}")
-                    else:
-                        st.info("Sem dados fora")
-                
-                st.divider()
-                
-                # GRÁFICO COMPARATIVO
-                st.subheader("📈 Comparativo: Casa x Fora")
-                data_chart = pd.DataFrame({
-                    'Situação': ['Casa', 'Casa', 'Fora', 'Fora'],
-                    'Tipo': ['Gols Feitos', 'Gols Sofridos', 'Gols Feitos', 'Gols Sofridos'],
-                    'Média': [
-                        df_home['FTHG'].mean() if not df_home.empty else 0,
-                        df_home['FTAG'].mean() if not df_home.empty else 0,
-                        df_away['FTAG'].mean() if not df_away.empty else 0,
-                        df_away['FTHG'].mean() if not df_away.empty else 0
-                    ]
-                })
-                fig = px.bar(data_chart, x='Situação', y='Média', color='Tipo', barmode='group', height=300)
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # HISTÓRICO RECENTE
-                st.subheader("📜 Últimas 10 Partidas")
-                st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HC', 'AC']].head(10), hide_index=True, use_container_width=True)
-
-    # ----------------------------------------------------
-    # MÓDULO 3: RAIO-X LIGAS
-    # ----------------------------------------------------
-    elif menu == "🏆 Raio-X Ligas":
-        st.header("🌎 Estatísticas dos Campeonatos")
-        stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
-            'Jogos': len(x),
-            'Média Gols': (x['FTHG']+x['FTAG']).mean(),
-            'Over 2.5 (%)': ((x['FTHG']+x['FTAG']) > 2.5).mean() * 100,
-            'BTTS (%)': ((x['FTHG']>0) & (x['FTAG']>0)).mean() * 100,
-            'Média Cantos': (x['HC']+x['AC']).mean()
-        })).sort_values('Média Gols', ascending=False).reset_index()
-        
-        st.dataframe(stats_liga, hide_index=True, use_container_width=True)
-
-else:
-    st.error("Erro crítico ao carregar dados.")
+                    st.metric("Média G
