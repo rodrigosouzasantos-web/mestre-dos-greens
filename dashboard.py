@@ -19,17 +19,19 @@ st.markdown("""
 # --- CARREGAMENTO (CACHED) ---
 @st.cache_data(ttl=3600)
 def load_data():
+    # Links do Repositório
     URL_HISTORY = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/past-seasons/matches/leagues-total/all_matches_combined.csv"
     URL_TODAY = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/todays_matches/todays_matches.csv"
     
     try:
-        # Carregar Histórico
+        # 1. Carregar Histórico
         s = requests.get(URL_HISTORY).content
         try:
             df = pd.read_csv(io.StringIO(s.decode('utf-8')), low_memory=False)
         except:
             df = pd.read_csv(io.StringIO(s.decode('utf-8')), sep=';', low_memory=False)
             
+        # Limpeza de nomes das colunas
         df.columns = [c.strip() for c in df.columns]
         rename_map = {
             'date': 'Date', 'date_unix': 'DateUnix', 'league': 'League',
@@ -42,34 +44,39 @@ def load_data():
         for old, new in rename_map.items():
             if old in df.columns: df.rename(columns={old: new}, inplace=True)
         
-        if 'Date' not in df.columns and 'DateUnix' in df.columns:
+        # Tratamento de Data (Mais robusto)
+        if 'Date' in df.columns:
+            # Tenta converter forçando dia primeiro (padrão europeu/BR)
+            df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce')
+        elif 'DateUnix' in df.columns:
             df['Date'] = pd.to_datetime(df['DateUnix'], unit='s')
-        else:
-            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
             
-        # Filtra histórico recente (2024 pra frente)
-        df_recent = df[df['Date'].dt.year >= 2024].copy()
+        # --- ALTERAÇÃO AQUI: Baixamos para 2023 para pegar mais ligas ---
+        df_recent = df[df['Date'].dt.year >= 2023].copy()
         
-        # Garante numéricos
+        # Garante colunas numéricas (substitui erro por 0)
         cols_stats = ['FTHG', 'FTAG', 'HTHG', 'HTAG', 'HC', 'AC', 'HY', 'AY']
         for c in cols_stats:
             if c not in df_recent.columns: df_recent[c] = 0
             df_recent[c] = pd.to_numeric(df_recent[c], errors='coerce').fillna(0)
 
-        # Carregar Hoje
-        df_today = pd.read_csv(URL_TODAY)
-        rename_today = {'home_name': 'HomeTeam', 'away_name': 'AwayTeam', 'league': 'League', 'time': 'Time'}
-        df_today.rename(columns=rename_today, inplace=True)
-        if 'HomeTeam' not in df_today.columns:
-            df_today['HomeTeam'] = df_today.iloc[:, 0]
-            df_today['AwayTeam'] = df_today.iloc[:, 1]
+        # 2. Carregar Jogos de Hoje
+        try:
+            df_today = pd.read_csv(URL_TODAY)
+            rename_today = {'home_name': 'HomeTeam', 'away_name': 'AwayTeam', 'league': 'League', 'time': 'Time'}
+            df_today.rename(columns=rename_today, inplace=True)
+            if 'HomeTeam' not in df_today.columns:
+                df_today['HomeTeam'] = df_today.iloc[:, 0]
+                df_today['AwayTeam'] = df_today.iloc[:, 1]
+        except:
+            df_today = pd.DataFrame() # Se der erro hoje, cria vazio para não quebrar o histórico
             
         return df_recent, df_today
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro crítico ao carregar dados: {e}")
         return None, None
 
-# --- PROCESSAMENTO HOJE ---
+# --- LÓGICA DE PROCESSAMENTO ---
 def process_today(df_recent, df_today):
     results = []
     if df_today.empty: return pd.DataFrame()
@@ -97,22 +104,26 @@ def process_today(df_recent, df_today):
             
     return pd.DataFrame(results)
 
-# --- INTERFACE ---
+# --- INTERFACE VISUAL ---
 df_recent, df_today = load_data()
 
 if df_recent is not None:
     st.sidebar.image("https://cdn-icons-png.flaticon.com/512/4128/4128176.png", width=100)
     st.sidebar.title("Mestre dos Greens")
+    
+    # Mostra total de ligas carregadas para conferência
+    qtd_ligas = len(df_recent['League'].unique())
+    st.sidebar.markdown(f"📊 **Base de Dados:**\n{len(df_recent)} jogos de {qtd_ligas} ligas carregadas (desde 2023).")
+    
     menu = st.sidebar.radio("Navegação", ["🎯 Jogos de Hoje", "🏆 Raio-X das Ligas", "⚽ Analisador de Times"])
     
     # === MÓDULO 1: JOGOS DE HOJE ===
     if menu == "🎯 Jogos de Hoje":
         st.header("🎯 Oportunidades do Dia")
-        if df_today is not None:
+        if not df_today.empty:
             df_final = process_today(df_recent, df_today)
             if not df_final.empty:
-                # Filtros
-                min_score = st.slider("Filtrar por Score (Poder do Green)", 0, 100, 50)
+                min_score = st.slider("Filtrar por Score", 0, 100, 50)
                 df_show = df_final[df_final['Score'] >= min_score].sort_values('Score', ascending=False)
                 
                 st.dataframe(
@@ -124,9 +135,9 @@ if df_recent is not None:
                     }, use_container_width=True, hide_index=True
                 )
             else:
-                st.info("Hoje não encontramos jogos com histórico suficiente na base ou não há jogos na grade.")
+                st.info("Hoje não há jogos com dados suficientes na base histórica.")
         else:
-            st.warning("Erro ao carregar grade de hoje.")
+            st.warning("A grade de jogos de hoje está vazia ou inacessível no momento.")
 
     # === MÓDULO 2: RAIO-X DAS LIGAS ===
     elif menu == "🏆 Raio-X das Ligas":
@@ -134,90 +145,77 @@ if df_recent is not None:
         
         # Agrupamento
         ligas_stats = []
-        for league in df_recent['League'].unique():
+        for league in sorted(df_recent['League'].unique()):
             df_l = df_recent[df_recent['League'] == league]
-            if len(df_l) > 10: # Só ligas com +10 jogos
+            # Reduzi o filtro para 5 jogos para aparecer mais ligas
+            if len(df_l) >= 5: 
                 total_goals = (df_l['FTHG'] + df_l['FTAG']).mean()
                 over25 = ((df_l['FTHG'] + df_l['FTAG']) > 2.5).mean()
                 btts = ((df_l['FTHG'] > 0) & (df_l['FTAG'] > 0)).mean()
                 corners = (df_l['HC'] + df_l['AC']).mean()
-                cards = (df_l['HY'] + df_l['AY']).mean()
                 
                 ligas_stats.append({
-                    "Liga": league, "Jogos": len(df_l),
+                    "Liga": league, 
+                    "Jogos": len(df_l),
                     "Média Gols": round(total_goals, 2),
                     "Over 2.5 (%)": round(over25*100, 1),
                     "BTTS (%)": round(btts*100, 1),
-                    "Cantos": round(corners, 1),
-                    "Cartões": round(cards, 1)
+                    "Cantos": round(corners, 1)
                 })
         
-        df_leagues = pd.DataFrame(ligas_stats)
-        
-        # Filtro de Liga
-        liga_escolhida = st.selectbox("Selecione uma Liga para analisar:", sorted(df_leagues['Liga'].unique()))
-        
-        # Mostra Dados da Liga
-        row = df_leagues[df_leagues['Liga'] == liga_escolhida].iloc[0]
-        
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Média de Gols", row['Média Gols'])
-        c2.metric("Chance Over 2.5", f"{row['Over 2.5 (%)']}%")
-        c3.metric("Chance BTTS", f"{row['BTTS (%)']}%")
-        c4.metric("Média Cantos", row['Cantos'])
-        
-        # Gráfico Comparativo
-        st.subheader("Comparativo com a Média Global")
-        avg_global_goals = df_leagues['Média Gols'].mean()
-        
-        fig = go.Figure(go.Indicator(
-            mode = "gauge+number+delta",
-            value = row['Média Gols'],
-            title = {'text': "Gols por Jogo"},
-            delta = {'reference': avg_global_goals, 'increasing': {'color': "green"}},
-            gauge = {'axis': {'range': [0, 5]}, 'bar': {'color': "lightgreen"}}
-        ))
-        st.plotly_chart(fig, use_container_width=True)
+        if ligas_stats:
+            df_leagues = pd.DataFrame(ligas_stats)
+            liga_escolhida = st.selectbox("Selecione uma Liga:", df_leagues['Liga'].unique())
+            
+            row = df_leagues[df_leagues['Liga'] == liga_escolhida].iloc[0]
+            
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Jogos Analisados", row['Jogos'])
+            c2.metric("Média Gols", row['Média Gols'])
+            c3.metric("Chance BTTS", f"{row['BTTS (%)']}%")
+            c4.metric("Média Cantos", row['Cantos'])
+            
+            # Gráficos
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                st.subheader("Gols por Jogo")
+                fig = go.Figure(go.Indicator(
+                    mode = "gauge+number", value = row['Média Gols'],
+                    gauge = {'axis': {'range': [0, 5]}, 'bar': {'color': "#00ff00"}}
+                ))
+                st.plotly_chart(fig, use_container_width=True)
+            with col_g2:
+                st.subheader("Probabilidades")
+                fig2 = px.bar(x=['Over 2.5', 'BTTS'], y=[row['Over 2.5 (%)'], row['BTTS (%)']], 
+                              labels={'x':'Mercado', 'y':'%'}, color_discrete_sequence=['#00ccff'])
+                st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.warning("Nenhuma liga encontrada com mais de 5 jogos desde 2023.")
 
     # === MÓDULO 3: ANALISADOR DE TIMES ===
     elif menu == "⚽ Analisador de Times":
         st.header("⚽ Scout de Equipes")
         
-        # Seleção de Time (Cria lista única de times casa e fora)
         all_teams = sorted(list(set(df_recent['HomeTeam'].unique()) | set(df_recent['AwayTeam'].unique())))
-        team = st.selectbox("Pesquise o Time:", all_teams)
         
-        # Filtra jogos do time
-        df_t = df_recent[(df_recent['HomeTeam'] == team) | (df_recent['AwayTeam'] == team)].sort_values('Date', ascending=False)
-        
-        if not df_t.empty:
-            st.write(f"Últimos {len(df_t)} jogos encontrados em 2024/25")
+        if all_teams:
+            team = st.selectbox("Pesquise o Time:", all_teams)
+            df_t = df_recent[(df_recent['HomeTeam'] == team) | (df_recent['AwayTeam'] == team)].sort_values('Date', ascending=False)
             
-            # Estatísticas Gerais do Time
-            jogos = len(df_t)
-            vitorias = len(df_t[((df_t['HomeTeam']==team) & (df_t['FTHG']>df_t['FTAG'])) | ((df_t['AwayTeam']==team) & (df_t['FTAG']>df_t['FTHG']))])
-            gols_pro = df_t.apply(lambda x: x['FTHG'] if x['HomeTeam']==team else x['FTAG'], axis=1).sum()
-            gols_sofridos = df_t.apply(lambda x: x['FTAG'] if x['HomeTeam']==team else x['FTHG'], axis=1).sum()
-            
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Jogos", jogos)
-            c2.metric("Vitórias", vitorias)
-            c3.metric("Gols Marcados", gols_pro)
-            c4.metric("Gols Sofridos", gols_sofridos)
-            
-            # Tabela de Últimos Jogos
-            st.subheader("📋 Últimas Partidas")
-            df_display = df_t[['Date', 'League', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HC', 'AC']].copy()
-            df_display['Placar'] = df_display['FTHG'].astype(str) + " x " + df_display['FTAG'].astype(str)
-            df_display['Cantos Total'] = df_display['HC'] + df_display['AC']
-            
-            st.dataframe(
-                df_display[['Date', 'League', 'HomeTeam', 'Placar', 'AwayTeam', 'Cantos Total']],
-                hide_index=True,
-                use_container_width=True
-            )
+            if not df_t.empty:
+                st.write(f"Histórico recente: {len(df_t)} partidas encontradas")
+                
+                # KPIs do Time
+                vitorias = len(df_t[((df_t['HomeTeam']==team) & (df_t['FTHG']>df_t['FTAG'])) | ((df_t['AwayTeam']==team) & (df_t['FTAG']>df_t['FTHG']))])
+                media_gols = (df_t['FTHG'] + df_t['FTAG']).mean()
+                
+                k1, k2 = st.columns(2)
+                k1.metric("Vitórias", vitorias)
+                k2.metric("Média de Gols nos Jogos", round(media_gols, 2))
+                
+                st.dataframe(df_t[['Date', 'League', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam']].head(10), hide_index=True, use_container_width=True)
         else:
-            st.warning("Sem dados recentes para este time.")
+            st.warning("Nenhum time encontrado na base de dados.")
 
 else:
-    st.error("Carregando base de dados...")
+    st.info("Aguarde... Conectando ao banco de dados do GitHub.")
