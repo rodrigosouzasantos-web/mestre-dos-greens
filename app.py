@@ -47,12 +47,20 @@ def load_data():
             except: df = pd.read_csv(io.StringIO(content), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
+            
+            # --- CORREÇÃO DO MAPEAMENTO (Versão 25) ---
+            # Mapeia TODAS as possibilidades de nomes de colunas
             rename = {
-                'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam',
-                'fthg':'FTHG','ftag':'FTAG','ht_goals_team_a':'HTHG','ht_goals_team_b':'HTAG',
+                'date':'Date', 'date_unix':'DateUnix',
+                'home_name':'HomeTeam', 'away_name':'AwayTeam',
+                'fthg':'FTHG', 'homeGoalCount':'FTHG', # Aceita os dois
+                'ftag':'FTAG', 'awayGoalCount':'FTAG', # Aceita os dois
+                'ht_goals_team_a':'HTHG', 'ht_goals_team_b':'HTAG',
                 'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=rename, inplace=True)
+            
+            # Garante que as colunas existam e sejam numéricas
             for c in ['FTHG','FTAG','HTHG','HTAG','HC','AC']: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -101,7 +109,7 @@ def treinar_ia(df):
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V24.0 - Layout Pro)...")
+    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V25.0 - Fixed)...")
     try: df_recent, df_today = load_data()
     except: return
     if df_today.empty or df_recent.empty: return
@@ -125,16 +133,16 @@ def gerar_alerta():
                     # Probabilidades
                     p_05ht = (stats_h['Over05HT'].mean() + stats_a['Over05HT'].mean())/2*100
                     p_15ft = (stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean())/2*100
-                    p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100 # Usado no card, mas IA define o trigger
+                    p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100 
                     p_btts = (stats_h['BTTS'].mean() + stats_a['BTTS'].mean())/2*100
                     wh = stats_h['HomeWin'].mean() * 100
                     wa = stats_a['AwayWin'].mean() * 100
-                    wd = 100 - (wh + wa) # Prob Empate Estimada
+                    wd = 100 - (wh + wa) 
                     if wd < 0: wd = 0
                     
                     avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean())
 
-                    # --- GATILHOS (Critérios para ENVIAR) ---
+                    # --- GATILHOS ---
                     destaques = []
                     
                     if prob_ia >= 60: destaques.append(f"🤖 Over 2.5 (IA)")
@@ -144,11 +152,12 @@ def gerar_alerta():
                     if avg_corners >= 9.5: destaques.append("🚩 Over Cantos")
                     
                     header = ""
+                    # Regra de Zebra (Visitante vence >50% e Mandante <40%)
                     if wa >= 50 and wh <= 40: destaques.append("🦓 ZEBRA/VALOR"); header = "🦓 ALERTA DE ZEBRA"
                     elif wh >= 80: header = "🔥 SUPER FAVORITO (CASA)"
                     elif wa >= 80: header = "🔥 SUPER FAVORITO (VISITANTE)"
                     
-                    # SE TIVER PELO MENOS UM DESTAQUE, MONTA O CARD
+                    # Se tiver destaque, monta o card
                     if destaques:
                         destaque_str = " | ".join(destaques)
                         if not header: header = "⚽ ANÁLISE PRÉ-JOGO"
@@ -171,16 +180,14 @@ def gerar_alerta():
                         txt += f"🔥 2.5 FT: @{get_odd(p_25ft):.2f} ({p_25ft:.0f}%)\n"
                         txt += f"🤝 Ambas: @{get_odd(p_btts):.2f} ({p_btts:.0f}%)\n"
                         
-                        if avg_corners >= 8.0: # Mostra cantos se tiver média razoável
+                        if avg_corners >= 8.0:
                             txt += f"\n🚩 *CANTOS:* Avg {avg_corners:.1f}\n"
 
                         txt += "--------------------------------\n"
-                        txt += "🤖 *GreenScore Bot*"
+                        txt += "🤖 *Mestre dos Greens*"
                         
                         enviar_msg(txt)
             except: continue
 
-if __name__ == "__main__":
-    gerar_alerta()
 if __name__ == "__main__":
     gerar_alerta()
