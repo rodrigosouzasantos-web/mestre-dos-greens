@@ -31,6 +31,10 @@ def enviar_msg(msg):
     try: requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
     except: pass
 
+def get_odd(prob):
+    if prob <= 0: return 0.00
+    return 100 / prob
+
 def load_data():
     all_dfs = []
     for nome, url in URLS_LIGAS.items():
@@ -43,21 +47,16 @@ def load_data():
             except: df = pd.read_csv(io.StringIO(content), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
-            
-            # --- Mapeamento Completo (Incluindo Cantos) ---
             rename = {
                 'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam',
                 'fthg':'FTHG','ftag':'FTAG','ht_goals_team_a':'HTHG','ht_goals_team_b':'HTAG',
-                'team_a_corners': 'HC', 'team_b_corners': 'AC' # Mapeia escanteios
+                'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=rename, inplace=True)
-            
-            # Garante numéricos
             for c in ['FTHG','FTAG','HTHG','HTAG','HC','AC']: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             
-            # Cria colunas de análise
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
@@ -66,7 +65,6 @@ def load_data():
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
 
             if 'HomeTeam' in df.columns: 
-                # Salva HC e AC também
                 all_dfs.append(df[['HomeTeam','AwayTeam','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','FTHG','FTAG','HC','AC']])
         except: pass
             
@@ -103,109 +101,86 @@ def treinar_ia(df):
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V23.0 - Full Power)...")
+    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V24.0 - Layout Pro)...")
     try: df_recent, df_today = load_data()
     except: return
-    if df_today.empty or df_recent.empty: 
-        enviar_msg("⚠️ Sem dados hoje.")
-        return
+    if df_today.empty or df_recent.empty: return
     model, team_stats = treinar_ia(df_recent)
-    if not model: 
-        enviar_msg("⚠️ IA Calibrando...")
-        return
+    if not model: return
 
-    greens = []
     for idx, row in df_today.iterrows():
         h, a = row.get('HomeTeam'), row.get('AwayTeam')
         if h in team_stats and a in team_stats:
             try:
+                # --- CÁLCULOS ---
                 preds = model.predict_proba([[team_stats[h], team_stats[a]]])
                 prob_ia = preds[0][1] * 100 if preds.shape[1] == 2 else (100.0 if model.classes_[0] == 1 else 0.0)
                 
-                # Separa estatísticas Casa e Fora
                 stats_h = df_recent[df_recent['HomeTeam'] == h]
                 stats_a = df_recent[df_recent['AwayTeam'] == a]
-                
-                # Fallback se tiver poucos jogos (pega geral)
                 if len(stats_h) < 3: stats_h = df_recent[(df_recent['HomeTeam']==h)|(df_recent['AwayTeam']==h)]
                 if len(stats_a) < 3: stats_a = df_recent[(df_recent['HomeTeam']==a)|(df_recent['AwayTeam']==a)]
 
                 if len(stats_h) >= 3 and len(stats_a) >= 3:
-                    tips = []
-                    # --- CÁLCULOS ESTATÍSTICOS ---
+                    # Probabilidades
                     p_05ht = (stats_h['Over05HT'].mean() + stats_a['Over05HT'].mean())/2*100
                     p_15ft = (stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean())/2*100
+                    p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100 # Usado no card, mas IA define o trigger
                     p_btts = (stats_h['BTTS'].mean() + stats_a['BTTS'].mean())/2*100
                     wh = stats_h['HomeWin'].mean() * 100
                     wa = stats_a['AwayWin'].mean() * 100
+                    wd = 100 - (wh + wa) # Prob Empate Estimada
+                    if wd < 0: wd = 0
                     
-                    # Cantos: Média feita pelo Casa (HC) + Média sofrida/feita pelo Visitante (AC)
-                    # Simplificação: Soma das médias totais dos times
-                    avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean()) 
+                    avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean())
+
+                    # --- GATILHOS (Critérios para ENVIAR) ---
+                    destaques = []
                     
-                    best_prob = 0 
-
-                    # --- GATILHOS V23 ---
-
-                    # 1. IA Gols
-                    if prob_ia >= 60: 
-                        tips.append(f"🤖 Over 2.5 ({prob_ia:.0f}%)")
-                        best_prob = max(best_prob, prob_ia)
+                    if prob_ia >= 60: destaques.append(f"🤖 Over 2.5 (IA)")
+                    if p_15ft >= 80: destaques.append("🛡️ Over 1.5 FT")
+                    if p_05ht >= 75: destaques.append("⚡ Over 0.5 HT")
+                    if p_btts >= 60: destaques.append("🤝 BTTS")
+                    if avg_corners >= 9.5: destaques.append("🚩 Over Cantos")
                     
-                    # 2. Estatísticas Gols
-                    if p_15ft >= 80: 
-                        tips.append(f"🛡️ Over 1.5 ({p_15ft:.0f}%)")
-                        best_prob = max(best_prob, p_15ft)
-                    if p_05ht >= 75: 
-                        tips.append(f"⚡ Over 0.5 HT ({p_05ht:.0f}%)")
-                        best_prob = max(best_prob, p_05ht)
-                    if p_btts >= 60: 
-                        tips.append(f"🤝 BTTS ({p_btts:.0f}%)")
-                        best_prob = max(best_prob, p_btts)
+                    header = ""
+                    if wa >= 50 and wh <= 40: destaques.append("🦓 ZEBRA/VALOR"); header = "🦓 ALERTA DE ZEBRA"
+                    elif wh >= 80: header = "🔥 SUPER FAVORITO (CASA)"
+                    elif wa >= 80: header = "🔥 SUPER FAVORITO (VISITANTE)"
                     
-                    # 3. Escanteios (NOVO)
-                    if avg_corners >= 9.5:
-                        tips.append(f"🚩 Over 9.0 Cantos (Avg {avg_corners:.1f})")
-                        # Para odd justa de cantos, usamos um valor fixo de referência se não tiver probabilidade
-                        if best_prob == 0: best_prob = 65 # Assume 65% se for só canto
-
-                    # 4. Zebra / Valor Visitante (NOVO)
-                    # Se visitante ganha > 50% e mandante ganha < 40%
-                    if wa >= 50 and wh <= 40:
-                        tips.append(f"🦓 ZEBRA/VALOR: {a} ({wa:.0f}%)")
-                        best_prob = max(best_prob, wa)
-
-                    # 5. Favoritos Normais
-                    elif wh >= 80: 
-                        tips.append(f"🔥 CASA SUPER ({wh:.0f}%)")
-                        best_prob = max(best_prob, wh)
-                    elif 60 <= wh < 80: 
-                        tips.append(f"🏠 Casa ({wh:.0f}%)")
-                        best_prob = max(best_prob, wh)
-                    elif wa >= 80: 
-                        tips.append(f"🔥 VISITANTE SUPER ({wa:.0f}%)")
-                        best_prob = max(best_prob, wa)
-                    elif 60 <= wa < 80 and "ZEBRA" not in str(tips): # Só mostra se não for zebra
-                        tips.append(f"✈️ Visitante ({wa:.0f}%)")
-                        best_prob = max(best_prob, wa)
-
-                    # --- ENVIO ---
-                    if tips:
-                        odd_justa = 100 / best_prob if best_prob > 0 else 0
+                    # SE TIVER PELO MENOS UM DESTAQUE, MONTA O CARD
+                    if destaques:
+                        destaque_str = " | ".join(destaques)
+                        if not header: header = "⚽ ANÁLISE PRÉ-JOGO"
                         
-                        tips_str = " | ".join(tips)
-                        txt = f"💎 *{h} x {a}*\n🏆 {row.get('League','-')} | ⏰ {row.get('Time','--:--')}\n💡 {tips_str}\n💰 Odd Justa: @{odd_justa:.2f}"
-                        greens.append(txt)
+                        txt = f"{header}\n"
+                        txt += f"🏆 *{row.get('League','-').upper()}*\n\n"
+                        txt += f"⚔️ *{h}* vs *{a}*\n"
+                        txt += f"⏰ {row.get('Time','--:--')}\n\n"
+                        
+                        txt += f"🎯 *Destaque:* {destaque_str}\n\n"
+                        
+                        txt += f"📊 *PROBABILIDADES (1x2):*\n"
+                        txt += f"🏠 Casa: @{get_odd(wh):.2f} ({wh:.0f}%)\n"
+                        txt += f"⚖️ Empate: @{get_odd(wd):.2f} ({wd:.0f}%)\n"
+                        txt += f"✈️ Visitante: @{get_odd(wa):.2f} ({wa:.0f}%)\n\n"
+                        
+                        txt += f"⚽ *MERCADOS DE GOLS:*\n"
+                        txt += f"⚡ 0.5 HT: @{get_odd(p_05ht):.2f} ({p_05ht:.0f}%)\n"
+                        txt += f"🛡️ 1.5 FT: @{get_odd(p_15ft):.2f} ({p_15ft:.0f}%)\n"
+                        txt += f"🔥 2.5 FT: @{get_odd(p_25ft):.2f} ({p_25ft:.0f}%)\n"
+                        txt += f"🤝 Ambas: @{get_odd(p_btts):.2f} ({p_btts:.0f}%)\n"
+                        
+                        if avg_corners >= 8.0: # Mostra cantos se tiver média razoável
+                            txt += f"\n🚩 *CANTOS:* Avg {avg_corners:.1f}\n"
+
+                        txt += "--------------------------------\n"
+                        txt += "🤖 *GreenScore Bot*"
+                        
+                        enviar_msg(txt)
             except: continue
 
-    if greens:
-        enviar_msg(f"🚨 *Mestre dos Greens (V23)* 🚨\n\nEncontrei {len(greens)} oportunidades!")
-        bloco = ""
-        for g in greens:
-            if len(bloco)+len(g) > 3000: enviar_msg(bloco); bloco=""
-            bloco += g + "\n➖➖➖➖➖➖➖\n"
-        if bloco: enviar_msg(bloco)
-    else: enviar_msg("📊 Analisei tudo. Nenhuma oportunidade bateu os critérios hoje.")
-
+if __name__ == "__main__":
+    gerar_alerta()
 if __name__ == "__main__":
     gerar_alerta()
