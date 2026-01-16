@@ -15,6 +15,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- CONFIGURAÇÃO TELEGRAM ---
+if "TELEGRAM_TOKEN" in st.secrets:
+    TELEGRAM_TOKEN = st.secrets["TELEGRAM_TOKEN"]
+    TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
+else:
+    TELEGRAM_TOKEN = st.sidebar.text_input("Token Telegram", type="password")
+    TELEGRAM_CHAT_ID = st.sidebar.text_input("Chat ID")
+
+def enviar_telegram(msg):
+    try: 
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", 
+                      data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+        return True
+    except: return False
+
 # --- DADOS ---
 URLS_LIGAS = {
     "Argentina": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
@@ -42,6 +57,8 @@ def load_data():
             except: df = pd.read_csv(io.StringIO(r.content.decode('latin-1')), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
+            
+            # Mapeamento e Correção de Nomes
             map_cols = {'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag',
                         'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 'team_a_corners': 'HC', 'team_b_corners': 'AC'}
             df.rename(columns=map_cols, inplace=True)
@@ -73,8 +90,9 @@ def load_data():
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
         if 'HomeTeam' not in df_today.columns: df_today['HomeTeam'], df_today['AwayTeam'] = df_today.iloc[:, 0], df_today.iloc[:, 1]
         
-        # Mapeamento de Odds (DOCX do Usuário)
-        for c in ['odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes']:
+        # Mapeamento de Odds (DOCX)
+        cols_odds = ['odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes']
+        for c in cols_odds:
             if c not in df_today.columns: df_today[c] = 0.0
             else: df_today[c] = pd.to_numeric(df_today[c], errors='coerce').fillna(0.0)
             
@@ -102,7 +120,7 @@ def treinar_ia(df):
     return model, team_stats
 
 # --- APP LAYOUT ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V29 Ultimate")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V29.1")
 df_recent, df_today = load_data()
 
 if not df_recent.empty:
@@ -110,7 +128,7 @@ if not df_recent.empty:
     
     tab1, tab2, tab3 = st.tabs(["🎯 Jogos de Hoje", "📊 Analisador de Times", "🌍 Raio-X Ligas"])
     
-    # --- TAB 1: GRADE (Lógica V28/29) ---
+    # --- TAB 1: GRADE ---
     with tab1:
         st.subheader("Grade Inteligente")
         if not df_today.empty:
@@ -123,7 +141,6 @@ if not df_recent.empty:
 
                 if len(sh)>=3 and len(sa)>=3:
                     p_ia = model.predict_proba([[team_stats.get(h,0), team_stats.get(a,0)]])[0][1]*100 if model and h in team_stats and a in team_stats else 0
-                    p_25ft = (sh['Over25FT'].mean() + sa['Over25FT'].mean())/2*100
                     p_btts = (sh['BTTS'].mean() + sa['BTTS'].mean())/2*100
                     
                     lista.append({
@@ -136,9 +153,17 @@ if not df_recent.empty:
                     })
             
             st.dataframe(pd.DataFrame(lista).sort_values('Score', ascending=False), use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("📡 Disparar Telegram (Manual)")
+            opcoes = [j['Jogo'] for j in lista]
+            sel = st.selectbox("Escolha o jogo:", opcoes)
+            if st.button("Enviar Alerta"):
+                enviar_telegram(f"📢 *Alerta Manual do Painel:* O jogo {sel} está sendo analisado agora!")
+                st.success("Enviado com sucesso!")
         else: st.warning("Aguardando dados de hoje...")
 
-    # --- TAB 2: ANALISADOR (Recuperado da V8) ---
+    # --- TAB 2: ANALISADOR ---
     with tab2:
         st.subheader("🔎 Analisador de Times")
         times = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -156,10 +181,11 @@ if not df_recent.empty:
             st.write("Últimos 5 Jogos:")
             st.dataframe(t_games[['Date','HomeTeam','AwayTeam','FTHG','FTAG']].head(5), hide_index=True)
 
-    # --- TAB 3: RAIO-X LIGAS (Recuperado da V8) ---
+    # --- TAB 3: RAIO-X LIGAS (Corrigido: Sem matplotlib) ---
     with tab3:
         st.subheader("🌍 Raio-X das Ligas")
         stats_league = df_recent.groupby('League_Custom')[['Over05HT','Over15FT','Over25FT','BTTS']].mean() * 100
-        st.dataframe(stats_league.style.format("{:.1f}%").background_gradient(cmap='Greens'), use_container_width=True)
+        # AQUI ESTAVA O ERRO. Removi o .background_gradient
+        st.dataframe(stats_league.style.format("{:.1f}%"), use_container_width=True)
 
-else: st.info("Carregando Banco de Dados...")
+else: st.info("Carregando Banco de Dados... Aguarde uns instantes.")
