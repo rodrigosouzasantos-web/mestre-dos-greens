@@ -37,7 +37,11 @@ def enviar_telegram(msg):
         return True
     except: return False
 
-# --- DADOS (LINKS DA V29.1 PARA GARANTIR COMPATIBILIDADE) ---
+def get_odd_justa(prob):
+    if prob <= 1: return 0.00
+    return 100 / prob
+
+# --- DADOS ---
 URLS_LIGAS = {
     "Argentina": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
     "Belgica": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Belgium_Pro_League_2016-2025.csv",
@@ -53,12 +57,10 @@ URLS_LIGAS = {
 }
 URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/todays_matches/todays_matches.csv"
 
-# --- CARREGAMENTO INTELIGENTE (LÓGICA V29.1) ---
 @st.cache_data(ttl=3600)
 def load_data():
     all_dfs = []
-    # Barra de progresso visual (estilo V8)
-    progress_text = "Baixando dados..."
+    progress_text = "Carregando inteligência global..."
     my_bar = st.progress(0, text=progress_text)
     total_files = len(URLS_LIGAS)
 
@@ -70,8 +72,6 @@ def load_data():
             except: df = pd.read_csv(io.StringIO(r.content.decode('latin-1')), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
-            
-            # Mapeamento V29 (Garante leitura correta)
             map_cols = {'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag',
                         'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 'team_a_corners': 'HC', 'team_b_corners': 'AC'}
             df.rename(columns=map_cols, inplace=True)
@@ -80,17 +80,17 @@ def load_data():
             for c in ['fthg','ftag','HTHG','HTAG','HC','AC']: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
-            
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
             
-            # Feature Engineering
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
             df['BTTS'] = ((df['FTHG'] > 0) & (df['FTAG'] > 0)).astype(int)
-            df['League_Custom'] = nome # Importante para o Raio-X
+            df['HomeWin'] = (df['FTHG'] > df['FTAG']).astype(int)
+            df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
+            df['League_Custom'] = nome
             
-            if 'HomeTeam' in df.columns: all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','Over05HT','Over15FT','Over25FT','BTTS','HC','AC']])
+            if 'HomeTeam' in df.columns: all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC']])
         except: pass
         my_bar.progress((i + 1) / total_files)
 
@@ -99,15 +99,18 @@ def load_data():
     full_df['Date'] = pd.to_datetime(full_df['Date'], errors='coerce')
     df_recent = full_df.dropna()
     
-    # Grade de Hoje com Odds Reais (V29.1)
+    # Grade de Hoje com Odds Reais
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
         if 'HomeTeam' not in df_today.columns: df_today['HomeTeam'], df_today['AwayTeam'] = df_today.iloc[:, 0], df_today.iloc[:, 1]
         
-        # Mapeamento de Odds (DOCX do Usuário)
-        cols_odds = ['odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes']
+        # Mapeamento de Odds (DOCX)
+        cols_odds = [
+            'odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes',
+            'odds_ft_over15', 'odds_1st_half_over05', 'odds_corners_over_95'
+        ]
         for c in cols_odds:
             if c not in df_today.columns: df_today[c] = 0.0
             else: df_today[c] = pd.to_numeric(df_today[c], errors='coerce').fillna(0.0)
@@ -136,76 +139,167 @@ def treinar_ia(df):
     return model, team_stats
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - Versão 30.0")
+st.title("🧙‍♂️ Mestre dos Greens PRO - Versão 31.0")
 
 df_recent, df_today = load_data()
 
 if not df_recent.empty:
     model, team_stats = treinar_ia(df_recent)
     
-    # Abas com Ícones (Estilo V8)
-    tab1, tab2, tab3 = st.tabs(["🎯 Jogos & Alertas", "⚽ Analisador de Times", "🌍 Raio-X Ligas"])
+    # --- MENU LATERAL (DE VOLTA!) ---
+    st.sidebar.markdown("## 🧭 Navegação")
+    menu = st.sidebar.radio("Selecione:", ["🎯 Grade & Oportunidades", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
-    # ------------------------------------------------------------------
-    # TAB 1: GRADE INTELIGENTE (Lógica V29 + Visual)
-    # ------------------------------------------------------------------
-    with tab1:
-        st.subheader("🎯 Grade do Dia & Oportunidades")
+    # ==============================================================================
+    # 1. GRADE DO DIA (TABELA COMPLETA + TELEGRAM INTELIGENTE)
+    # ==============================================================================
+    if menu == "🎯 Grade & Oportunidades":
+        st.header("🎯 Grade do Dia & Oportunidades")
+        
         if not df_today.empty:
-            lista = []
+            lista_visual = [] # Para mostrar na tabela
+            dados_para_envio = {} # Para montar a mensagem do Telegram
+
             for idx, row in df_today.iterrows():
                 h, a = row['HomeTeam'], row['AwayTeam']
+                # Busca stats
                 sh = df_recent[df_recent['HomeTeam'] == h]; sa = df_recent[df_recent['AwayTeam'] == a]
                 if len(sh) < 3: sh = df_recent[(df_recent['HomeTeam']==h)|(df_recent['AwayTeam']==h)]
                 if len(sa) < 3: sa = df_recent[(df_recent['HomeTeam']==a)|(df_recent['AwayTeam']==a)]
 
                 if len(sh)>=3 and len(sa)>=3:
+                    # Cálculos das Stats Históricas
                     p_ia = model.predict_proba([[team_stats.get(h,0), team_stats.get(a,0)]])[0][1]*100 if model and h in team_stats and a in team_stats else 0
+                    p_05ht = (sh['Over05HT'].mean() + sa['Over05HT'].mean())/2*100
+                    p_15ft = (sh['Over15FT'].mean() + sa['Over15FT'].mean())/2*100
                     p_btts = (sh['BTTS'].mean() + sa['BTTS'].mean())/2*100
-                    p_25ft = (sh['Over25FT'].mean() + sa['Over25FT'].mean())/2*100
+                    avg_corners = (sh['HC'].mean() + sa['AC'].mean())
+                    wh = sh['HomeWin'].mean() * 100
+                    wa = sa['AwayWin'].mean() * 100
+                    wd = 100 - (wh + wa)
+                    if wd < 0: wd = 0
                     
-                    lista.append({
-                        "Liga": row.get('League','-'), 
+                    # Cria Destaques (Tips)
+                    tips_list = []
+                    if p_ia >= 60: tips_list.append("🤖 Over 2.5")
+                    if p_15ft >= 80: tips_list.append("🛡️ Over 1.5")
+                    if p_05ht >= 75: tips_list.append("⚡ 0.5 HT")
+                    if p_btts >= 60: tips_list.append("🤝 BTTS")
+                    if avg_corners >= 9.5: tips_list.append("🚩 Cantos")
+                    
+                    tips_str = " | ".join(tips_list) if tips_list else "⚠️ S/ Padrão"
+                    
+                    # 1. Dados para a TABELA (Visual)
+                    lista_visual.append({
+                        "Liga": row.get('League','-'),
                         "Jogo": f"{h} x {a}",
-                        "Odd Casa": f"{row['odds_ft_1']:.2f}" if row['odds_ft_1'] > 1 else "-",
-                        "IA (Over 2.5)": p_ia, # Score numérico para ordenar
-                        "Stats BTTS": f"{p_btts:.0f}%",
-                        "Score_Show": f"{p_ia:.1f}%" # Texto para mostrar
+                        "Tip Visual": tips_str,
+                        "IA (2.5)": p_ia,
+                        "1.5 FT": p_15ft,
+                        "0.5 HT": p_05ht,
+                        "BTTS": p_btts,
+                        "Cantos": avg_corners,
+                        "Score": p_ia
                     })
+                    
+                    # 2. Dados para o TELEGRAM (Brutos para montar a msg)
+                    dados_para_envio[f"{h} x {a}"] = {
+                        "League": row.get('League','-'), "Time": row.get('Time','--:--'),
+                        "Home": h, "Away": a,
+                        "Tips": tips_list,
+                        "Prob_IA": p_ia, "Prob_15FT": p_15ft, "Prob_05HT": p_05ht, 
+                        "Prob_BTTS": p_btts, "Avg_Corners": avg_corners,
+                        "Prob_H": wh, "Prob_D": wd, "Prob_A": wa,
+                        "Odd_Real_H": row.get('odds_ft_1', 0), "Odd_Real_D": row.get('odds_ft_x', 0), "Odd_Real_A": row.get('odds_ft_2', 0),
+                        "Odd_Real_15FT": row.get('odds_ft_over15', 0), "Odd_Real_25FT": row.get('odds_ft_over25', 0),
+                        "Odd_Real_BTTS": row.get('odds_btts_yes', 0), "Odd_Real_HT": row.get('odds_1st_half_over05', 0)
+                    }
+
+            # --- EXIBIÇÃO DA TABELA ---
+            df_show = pd.DataFrame(lista_visual).sort_values('Score', ascending=False)
             
-            # Dataframe Interativo
-            df_show = pd.DataFrame(lista).sort_values('IA (Over 2.5)', ascending=False)
             st.dataframe(
-                df_show, 
+                df_show,
                 column_config={
-                    "IA (Over 2.5)": st.column_config.ProgressColumn("Confiança IA", format="%.1f%%", min_value=0, max_value=100)
+                    "Tip Visual": st.column_config.TextColumn("Destaques"),
+                    "IA (2.5)": st.column_config.ProgressColumn("Over 2.5 (IA)", format="%.1f%%", min_value=0, max_value=100),
+                    "1.5 FT": st.column_config.ProgressColumn("Over 1.5", format="%.1f%%", min_value=0, max_value=100),
+                    "0.5 HT": st.column_config.ProgressColumn("Over 0.5 HT", format="%.1f%%", min_value=0, max_value=100),
+                    "BTTS": st.column_config.ProgressColumn("Ambas Marcam", format="%.1f%%", min_value=0, max_value=100),
+                    "Cantos": st.column_config.NumberColumn("Cantos (Média)", format="%.1f"),
                 },
                 use_container_width=True, hide_index=True
             )
             
+            # --- ENVIO PARA TELEGRAM (CORRIGIDO) ---
             st.divider()
-            st.subheader("📡 Disparar Telegram (Manual)")
-            col_sel, col_btn = st.columns([3,1])
+            st.markdown("### 📡 Disparar Alerta (Manual)")
+            
+            col_sel, col_btn = st.columns([3, 1])
             with col_sel:
-                opcoes = [j['Jogo'] for j in lista]
-                sel = st.selectbox("Escolha o jogo para enviar:", opcoes)
+                jogos_disp = list(dados_para_envio.keys())
+                jogo_alvo = st.selectbox("Selecione o jogo para enviar:", jogos_disp)
+            
             with col_btn:
-                st.write("") # Espaço
-                st.write("") 
-                if st.button("🚀 Enviar Alerta"):
-                    enviar_telegram(f"📢 *Alerta Manual do Painel:* O jogo *{sel}* está sendo analisado agora! Fique de olho!")
-                    st.success("Enviado com sucesso!")
-        else: st.warning("Aguardando grade de jogos...")
+                st.write("") # Espaçamento
+                st.write("")
+                if st.button("🚀 Enviar para Telegram"):
+                    if jogo_alvo in dados_para_envio:
+                        d = dados_para_envio[jogo_alvo]
+                        
+                        # Monta a mensagem IGUAL ao Bot V30
+                        destaque_str = " | ".join(d['Tips']) if d['Tips'] else "Análise Manual"
+                        header = "⚽ ANÁLISE PRÉ-JOGO (MANUAL)"
+                        if d['Prob_A'] >= 50 and d['Prob_H'] <= 40: header = "🦓 ALERTA DE ZEBRA"
+                        elif d['Prob_H'] >= 80: header = "🔥 SUPER FAVORITO (CASA)"
+                        
+                        # Função auxiliar de odd
+                        def show_odd(real, fair_prob):
+                            fair_odd = get_odd_justa(fair_prob)
+                            if real > 1.0: return f"@{real:.2f}"
+                            return f"Justa @{fair_odd:.2f}"
 
-    # ------------------------------------------------------------------
-    # TAB 2: ANALISADOR DE TIMES (Visual V8 - Scouts Detalhados)
-    # ------------------------------------------------------------------
-    with tab2:
-        st.subheader("🔎 Scout Profundo de Equipes")
+                        txt = f"{header}\n"
+                        txt += f"🏆 *{d['League'].upper()}*\n\n"
+                        txt += f"⚔️ *{d['Home']}* vs *{d['Away']}*\n"
+                        txt += f"⏰ {d['Time']}\n\n"
+                        txt += f"🎯 *Destaque:* {destaque_str}\n\n"
+                        
+                        txt += f"📊 *PROBABILIDADES (1x2):*\n"
+                        txt += f"🏠 Casa: {show_odd(d['Odd_Real_H'], d['Prob_H'])} ({d['Prob_H']:.0f}%)\n"
+                        txt += f"⚖️ Empate: {show_odd(d['Odd_Real_D'], d['Prob_D'])} ({d['Prob_D']:.0f}%)\n"
+                        txt += f"✈️ Visitante: {show_odd(d['Odd_Real_A'], d['Prob_A'])} ({d['Prob_A']:.0f}%)\n\n"
+                        
+                        txt += f"⚽ *MERCADOS DE GOLS:*\n"
+                        txt += f"⚡ 0.5 HT: {show_odd(d['Odd_Real_HT'], d['Prob_05HT'])} ({d['Prob_05HT']:.0f}%)\n"
+                        txt += f"🛡️ 1.5 FT: {show_odd(d['Odd_Real_15FT'], d['Prob_15FT'])} ({d['Prob_15FT']:.0f}%)\n"
+                        txt += f"🔥 2.5 FT: {show_odd(d['Odd_Real_25FT'], d['Prob_IA'])} (IA: {d['Prob_IA']:.0f}%)\n"
+                        txt += f"🤝 Ambas: {show_odd(d['Odd_Real_BTTS'], d['Prob_BTTS'])} ({d['Prob_BTTS']:.0f}%)\n"
+                        
+                        if d['Avg_Corners'] >= 8.0:
+                            txt += f"\n🚩 *CANTOS:* Avg {d['Avg_Corners']:.1f}\n"
+
+                        txt += "--------------------------------\n"
+                        txt += "⚠️ Aposte com Responsabilidade\n\n"
+                        txt += "🤖 *Mestre dos Greens (Painel)*"
+                        
+                        if enviar_telegram(txt):
+                            st.success(f"Alerta de {d['Home']} x {d['Away']} enviado com sucesso!")
+                        else:
+                            st.error("Erro ao enviar. Verifique o Token/Chat ID.")
+                    else:
+                        st.error("Dados do jogo não encontrados.")
+
+        else: st.warning("Aguardando dados da grade...")
+
+    # ==============================================================================
+    # 2. ANALISADOR DE TIMES (VISUAL V8)
+    # ==============================================================================
+    elif menu == "🔎 Analisador de Times":
+        st.header("🔎 Scout Profundo de Equipes")
         
-        # Busca Inteligente
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
-        sel_time = st.selectbox("🔍 Pesquise o Time:", all_teams, index=None, placeholder="Digite para filtrar...")
+        sel_time = st.selectbox("Pesquise o Time:", all_teams, index=None, placeholder="Digite para filtrar...")
         
         if sel_time:
             df_home = df_recent[df_recent['HomeTeam'] == sel_time]
@@ -215,7 +309,6 @@ if not df_recent.empty:
             if not df_all.empty:
                 st.markdown(f"### 📊 Raio-X: {sel_time}")
                 
-                # Métricas em Colunas (Estilo V8)
                 c1, c2, c3 = st.columns(3)
                 with c1:
                     st.markdown("##### 🌍 Geral")
@@ -238,8 +331,6 @@ if not df_recent.empty:
                     else: st.info("-")
                 
                 st.divider()
-                
-                # Gráfico Comparativo (Plotly)
                 st.subheader("📈 Comparativo: Casa x Fora")
                 data_chart = pd.DataFrame({
                     'Situação': ['Casa', 'Casa', 'Fora', 'Fora'],
@@ -253,13 +344,12 @@ if not df_recent.empty:
                 st.subheader("📜 Últimas 10 Partidas")
                 st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
-    # ------------------------------------------------------------------
-    # TAB 3: RAIO-X LIGAS (Visual V8 - Filtros e Barras)
-    # ------------------------------------------------------------------
-    with tab3:
-        st.subheader("🌎 Inteligência de Campeonatos")
+    # ==============================================================================
+    # 3. RAIO-X LIGAS (VISUAL V8 + FILTRO)
+    # ==============================================================================
+    elif menu == "🌍 Raio-X Ligas":
+        st.header("🌎 Inteligência de Campeonatos")
         
-        # 1. Processamento
         stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
             'Jogos': len(x),
             'Média Gols': (x['FTHG']+x['FTAG']).mean(),
@@ -268,7 +358,6 @@ if not df_recent.empty:
             'Média Cantos': (x['HC']+x['AC']).mean()
         })).reset_index()
 
-        # 2. FILTRO (O Grande Diferencial da V8)
         ligas_disponiveis = sorted(stats_liga['League_Custom'].unique())
         ligas_sel = st.multiselect("🔍 Filtrar Ligas:", ligas_disponiveis, placeholder="Selecione para comparar...")
         
@@ -276,7 +365,6 @@ if not df_recent.empty:
             stats_liga = stats_liga[stats_liga['League_Custom'].isin(ligas_sel)]
 
         if not stats_liga.empty:
-            # 3. Gráficos
             tab_g, tab_c = st.tabs(["⚽ Gols", "🚩 Cantos"])
             with tab_g:
                 fig_gols = px.bar(stats_liga.sort_values('Média Gols', ascending=False), x='League_Custom', y='Média Gols', color='Over 2.5 (%)', title="Média de Gols (Cor = % Over 2.5)", color_continuous_scale='RdYlGn')
@@ -285,7 +373,6 @@ if not df_recent.empty:
                 fig_cantos = px.bar(stats_liga.sort_values('Média Cantos', ascending=False), x='League_Custom', y='Média Cantos', title="Média de Escanteios", color_discrete_sequence=['#00ccff'])
                 st.plotly_chart(fig_cantos, use_container_width=True)
 
-            # 4. Tabela Visual (Sem matplotlib para não dar erro)
             st.dataframe(
                 stats_liga.sort_values('Média Gols', ascending=False),
                 column_config={
