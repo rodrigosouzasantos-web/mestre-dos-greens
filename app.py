@@ -50,7 +50,6 @@ def load_data():
             df.columns = [c.strip().lower() for c in df.columns]
             
             # --- PADRONIZAÇÃO DE COLUNAS ---
-            # Força nomes padrão para evitar zeros
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag',
                 'home_score': 'fthg', 'away_score': 'ftag',
@@ -62,16 +61,13 @@ def load_data():
             rename_main = {'date':'Date', 'home_name':'HomeTeam', 'away_name':'AwayTeam'}
             df.rename(columns=rename_main, inplace=True)
             
-            # Garante numéricos
             cols_num = ['fthg','ftag','HTHG','HTAG','HC','AC']
             for c in cols_num: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             
-            # Normaliza para Maiúsculo para o resto do script
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
 
-            # Feature Engineering
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
@@ -88,12 +84,12 @@ def load_data():
     df_recent = full_df.tail(15000).copy()
     df_recent.dropna(subset=['HomeTeam', 'AwayTeam'], inplace=True)
     
-    # --- CARREGAMENTO DA GRADE DE HOJE COM TENTATIVA DE ODDS REAIS ---
+    # --- CARREGAMENTO DA GRADE DE HOJE ---
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         
-        # Mapa de Odds Reais (Tenta achar colunas comuns de odds)
+        # Mapa de Odds Reais
         map_odds = {
             'avg_home_odd': 'OddH', 'avg_draw_odd': 'OddD', 'avg_away_odd': 'OddA',
             '1x2_1': 'OddH', '1x2_x': 'OddD', '1x2_2': 'OddA',
@@ -104,7 +100,10 @@ def load_data():
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
         if 'HomeTeam' not in df_today.columns: df_today['HomeTeam'], df_today['AwayTeam'] = df_today.iloc[:, 0], df_today.iloc[:, 1]
         
-        # Se não achou odd real, cria zerada para não dar erro
+        # --- FIX: REMOVE DUPLICATAS ---
+        # Garante que cada jogo apareça apenas uma vez
+        df_today.drop_duplicates(subset=['HomeTeam', 'AwayTeam'], keep='first', inplace=True)
+
         for c in ['OddH','OddD','OddA']:
             if c not in df_today.columns: df_today[c] = 0.0
             else: df_today[c] = pd.to_numeric(df_today[c], errors='coerce').fillna(0.0)
@@ -133,7 +132,7 @@ def treinar_ia(df):
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Caçando Valor (V27.0 - Híbrida)...")
+    enviar_msg("🔎 *Mestre dos Greens*: Caçando Valor (V28.0 - Clean & Spaced)...")
     try: df_recent, df_today = load_data()
     except: return
     if df_today.empty or df_recent.empty: return
@@ -166,7 +165,7 @@ def gerar_alerta():
                     
                     avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean())
 
-                    # --- CAPTURA DE ODDS REAIS DO CSV (SE HOUVER) ---
+                    # --- CAPTURA DE ODDS REAIS ---
                     odd_real_h = row.get('OddH', 0.0)
                     odd_real_d = row.get('OddD', 0.0)
                     odd_real_a = row.get('OddA', 0.0)
@@ -195,18 +194,15 @@ def gerar_alerta():
                         txt += f"⏰ {row.get('Time','--:--')}\n\n"
                         txt += f"🎯 *Destaque:* {destaque_str}\n\n"
                         
-                        # BLOCO 1X2 INTELIGENTE (Real vs Justa)
+                        # BLOCO 1X2 INTELIGENTE
                         txt += f"📊 *PROBABILIDADES (1x2):*\n"
                         
-                        # Casa
                         lbl_odd_h = f"@{odd_real_h:.2f}" if odd_real_h > 1 else f"Justa @{get_odd_justa(wh):.2f}"
                         txt += f"🏠 Casa: {lbl_odd_h} ({wh:.0f}%)\n"
                         
-                        # Empate
                         lbl_odd_d = f"@{odd_real_d:.2f}" if odd_real_d > 1 else f"Justa @{get_odd_justa(wd):.2f}"
                         txt += f"⚖️ Empate: {lbl_odd_d} ({wd:.0f}%)\n"
                         
-                        # Visitante
                         lbl_odd_a = f"@{odd_real_a:.2f}" if odd_real_a > 1 else f"Justa @{get_odd_justa(wa):.2f}"
                         txt += f"✈️ Visitante: {lbl_odd_a} ({wa:.0f}%)\n\n"
                         
@@ -220,13 +216,11 @@ def gerar_alerta():
                             txt += f"\n🚩 *CANTOS:* Avg {avg_corners:.1f}\n"
 
                         txt += "--------------------------------\n"
-                        txt += "⚠️ Aposte com Responsabilidade\n"
+                        txt += "⚠️ Aposte com Responsabilidade\n\n"
                         txt += "🤖 *Mestre dos Greens*"
                         
                         enviar_msg(txt)
             except: continue
 
-if __name__ == "__main__":
-    gerar_alerta()
 if __name__ == "__main__":
     gerar_alerta()
