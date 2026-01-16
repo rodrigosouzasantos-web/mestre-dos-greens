@@ -32,7 +32,6 @@ def enviar_msg(msg):
     except: pass
 
 def get_odd_justa(prob):
-    # Odd Justa Matemática (Baseada na Estatística)
     if prob <= 1: return 0.00 
     return 100 / prob
 
@@ -49,7 +48,7 @@ def load_data():
             
             df.columns = [c.strip().lower() for c in df.columns]
             
-            # --- PADRONIZAÇÃO DE COLUNAS ---
+            # Padronização e Limpeza
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag',
                 'home_score': 'fthg', 'away_score': 'ftag',
@@ -57,17 +56,15 @@ def load_data():
                 'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=map_cols, inplace=True)
+            df.rename(columns={'date':'Date', 'home_name':'HomeTeam', 'away_name':'AwayTeam'}, inplace=True)
             
-            rename_main = {'date':'Date', 'home_name':'HomeTeam', 'away_name':'AwayTeam'}
-            df.rename(columns=rename_main, inplace=True)
-            
-            cols_num = ['fthg','ftag','HTHG','HTAG','HC','AC']
-            for c in cols_num: 
+            for c in ['fthg','ftag','HTHG','HTAG','HC','AC']: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
 
+            # Feature Engineering
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
@@ -84,30 +81,30 @@ def load_data():
     df_recent = full_df.tail(15000).copy()
     df_recent.dropna(subset=['HomeTeam', 'AwayTeam'], inplace=True)
     
-    # --- CARREGAMENTO DA GRADE DE HOJE ---
+    # --- CARREGAMENTO DA GRADE DE HOJE COM AS SUAS COLUNAS ---
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         
-        # Mapa de Odds Reais
-        map_odds = {
-            'avg_home_odd': 'OddH', 'avg_draw_odd': 'OddD', 'avg_away_odd': 'OddA',
-            '1x2_1': 'OddH', '1x2_x': 'OddD', '1x2_2': 'OddA',
-            'b365h': 'OddH', 'b365d': 'OddD', 'b365a': 'OddA'
-        }
-        df_today.rename(columns=map_odds, inplace=True)
-        
+        # Mapeamento Básico
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
         if 'HomeTeam' not in df_today.columns: df_today['HomeTeam'], df_today['AwayTeam'] = df_today.iloc[:, 0], df_today.iloc[:, 1]
         
-        # --- FIX: REMOVE DUPLICATAS ---
-        # Garante que cada jogo apareça apenas uma vez
+        # Lista das colunas de Odds que você passou (garantindo que existam no DF)
+        cols_odds = [
+            'odds_ft_1', 'odds_ft_x', 'odds_ft_2',
+            'odds_ft_over15', 'odds_ft_over25',
+            'odds_btts_yes', 'odds_btts_no',
+            'odds_corners_over_85', 'odds_corners_over_95',
+            'odds_1st_half_over05', 'odds_1st_half_over15'
+        ]
+        
+        for col in cols_odds:
+            if col not in df_today.columns: df_today[col] = 0.0
+            else: df_today[col] = pd.to_numeric(df_today[col], errors='coerce').fillna(0.0)
+            
         df_today.drop_duplicates(subset=['HomeTeam', 'AwayTeam'], keep='first', inplace=True)
 
-        for c in ['OddH','OddD','OddA']:
-            if c not in df_today.columns: df_today[c] = 0.0
-            else: df_today[c] = pd.to_numeric(df_today[c], errors='coerce').fillna(0.0)
-            
     except: df_today = pd.DataFrame()
     
     return df_recent, df_today
@@ -132,7 +129,7 @@ def treinar_ia(df):
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Caçando Valor (V28.0 - Clean & Spaced)...")
+    enviar_msg("🔎 *Mestre dos Greens*: V29.0 (Ultimate) Iniciada...")
     try: df_recent, df_today = load_data()
     except: return
     if df_today.empty or df_recent.empty: return
@@ -143,17 +140,18 @@ def gerar_alerta():
         h, a = row.get('HomeTeam'), row.get('AwayTeam')
         if h in team_stats and a in team_stats:
             try:
-                # --- PREVISÃO ---
+                # Previsão IA
                 preds = model.predict_proba([[team_stats[h], team_stats[a]]])
                 prob_ia = preds[0][1] * 100 if preds.shape[1] == 2 else (100.0 if model.classes_[0] == 1 else 0.0)
                 
+                # Stats Históricas
                 stats_h = df_recent[df_recent['HomeTeam'] == h]
                 stats_a = df_recent[df_recent['AwayTeam'] == a]
                 if len(stats_h) < 3: stats_h = df_recent[(df_recent['HomeTeam']==h)|(df_recent['AwayTeam']==h)]
                 if len(stats_a) < 3: stats_a = df_recent[(df_recent['HomeTeam']==a)|(df_recent['AwayTeam']==a)]
 
                 if len(stats_h) >= 3 and len(stats_a) >= 3:
-                    # Probabilidades Estatísticas
+                    # Probabilidades Justas
                     p_05ht = (stats_h['Over05HT'].mean() + stats_a['Over05HT'].mean())/2*100
                     p_15ft = (stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean())/2*100
                     p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100
@@ -165,21 +163,18 @@ def gerar_alerta():
                     
                     avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean())
 
-                    # --- CAPTURA DE ODDS REAIS ---
-                    odd_real_h = row.get('OddH', 0.0)
-                    odd_real_d = row.get('OddD', 0.0)
-                    odd_real_a = row.get('OddA', 0.0)
-                    
-                    # --- GATILHOS ---
+                    # --- GATILHOS (Usando suas colunas) ---
                     destaques = []
+                    
+                    # 1. IA e Gols
                     if prob_ia >= 60: destaques.append(f"🤖 Over 2.5 (IA)")
                     if p_15ft >= 80: destaques.append("🛡️ Over 1.5 FT")
                     if p_05ht >= 75: destaques.append("⚡ Over 0.5 HT")
                     if p_btts >= 60: destaques.append("🤝 BTTS")
                     if avg_corners >= 9.5: destaques.append("🚩 Over Cantos")
                     
+                    # 2. Zebra / Favorito
                     header = ""
-                    # Lógica de Zebra
                     if wa >= 50 and wh <= 40: destaques.append("🦓 ZEBRA/VALOR"); header = "🦓 ALERTA DE ZEBRA"
                     elif wh >= 80: header = "🔥 SUPER FAVORITO (CASA)"
                     elif wa >= 80: header = "🔥 SUPER FAVORITO (VISITANTE)"
@@ -194,26 +189,32 @@ def gerar_alerta():
                         txt += f"⏰ {row.get('Time','--:--')}\n\n"
                         txt += f"🎯 *Destaque:* {destaque_str}\n\n"
                         
-                        # BLOCO 1X2 INTELIGENTE
+                        # FUNÇÃO DE DISPLAY (Mostra Real se existir, senão Justa)
+                        def show_odd(real, fair_prob):
+                            real_val = row.get(real, 0.0)
+                            fair_odd = get_odd_justa(fair_prob)
+                            if real_val > 1.0: return f"@{real_val:.2f}"
+                            return f"Justa @{fair_odd:.2f}"
+
+                        # 1X2
                         txt += f"📊 *PROBABILIDADES (1x2):*\n"
+                        txt += f"🏠 Casa: {show_odd('odds_ft_1', wh)} ({wh:.0f}%)\n"
+                        txt += f"⚖️ Empate: {show_odd('odds_ft_x', wd)} ({wd:.0f}%)\n"
+                        txt += f"✈️ Visitante: {show_odd('odds_ft_2', wa)} ({wa:.0f}%)\n\n"
                         
-                        lbl_odd_h = f"@{odd_real_h:.2f}" if odd_real_h > 1 else f"Justa @{get_odd_justa(wh):.2f}"
-                        txt += f"🏠 Casa: {lbl_odd_h} ({wh:.0f}%)\n"
+                        # GOLS
+                        txt += f"⚽ *MERCADOS DE GOLS:*\n"
+                        txt += f"⚡ 0.5 HT: {show_odd('odds_1st_half_over05', p_05ht)} ({p_05ht:.0f}%)\n"
+                        txt += f"🛡️ 1.5 FT: {show_odd('odds_ft_over15', p_15ft)} ({p_15ft:.0f}%)\n"
+                        txt += f"🔥 2.5 FT: {show_odd('odds_ft_over25', p_25ft)} ({p_25ft:.0f}%)\n"
+                        txt += f"🤝 Ambas: {show_odd('odds_btts_yes', p_btts)} ({p_btts:.0f}%)\n"
                         
-                        lbl_odd_d = f"@{odd_real_d:.2f}" if odd_real_d > 1 else f"Justa @{get_odd_justa(wd):.2f}"
-                        txt += f"⚖️ Empate: {lbl_odd_d} ({wd:.0f}%)\n"
-                        
-                        lbl_odd_a = f"@{odd_real_a:.2f}" if odd_real_a > 1 else f"Justa @{get_odd_justa(wa):.2f}"
-                        txt += f"✈️ Visitante: {lbl_odd_a} ({wa:.0f}%)\n\n"
-                        
-                        txt += f"⚽ *MERCADOS DE GOLS (ODDS JUSTAS):*\n"
-                        txt += f"⚡ 0.5 HT: @{get_odd_justa(p_05ht):.2f} ({p_05ht:.0f}%)\n"
-                        txt += f"🛡️ 1.5 FT: @{get_odd_justa(p_15ft):.2f} ({p_15ft:.0f}%)\n"
-                        txt += f"🔥 2.5 FT: @{get_odd_justa(p_25ft):.2f} ({p_25ft:.0f}%)\n"
-                        txt += f"🤝 Ambas: @{get_odd_justa(p_btts):.2f} ({p_btts:.0f}%)\n"
-                        
+                        # CANTOS
                         if avg_corners >= 8.0:
                             txt += f"\n🚩 *CANTOS:* Avg {avg_corners:.1f}\n"
+                            # Se tiver odd de cantos 9.5, mostra
+                            odd_cn = row.get('odds_corners_over_95', 0.0)
+                            if odd_cn > 1: txt += f"   (Over 9.5: @{odd_cn:.2f})\n"
 
                         txt += "--------------------------------\n"
                         txt += "⚠️ Aposte com Responsabilidade\n\n"
