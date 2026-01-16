@@ -32,7 +32,8 @@ def enviar_msg(msg):
     except: pass
 
 def get_odd(prob):
-    if prob <= 0: return 0.00
+    # Calcula a Odd Justa baseada na porcentagem (100 / prob)
+    if prob <= 1: return 0.00 # Evita divisão por zero ou odds absurdas
     return 100 / prob
 
 def load_data():
@@ -46,29 +47,39 @@ def load_data():
             try: df = pd.read_csv(io.StringIO(content), low_memory=False)
             except: df = pd.read_csv(io.StringIO(content), sep=';', low_memory=False)
             
+            # Normaliza nomes para minúsculo
             df.columns = [c.strip().lower() for c in df.columns]
             
-            # --- CORREÇÃO DO MAPEAMENTO (Versão 25) ---
-            # Mapeia TODAS as possibilidades de nomes de colunas
+            # --- MAPEAMENTO FORÇADO DE GOLS (CORREÇÃO DE ZERO) ---
+            # Verifica variações de nomes e padroniza para 'fthg' e 'ftag'
+            if 'homegoalcount' in df.columns: df.rename(columns={'homegoalcount': 'fthg'}, inplace=True)
+            if 'awaygoalcount' in df.columns: df.rename(columns={'awaygoalcount': 'ftag'}, inplace=True)
+            if 'home_score' in df.columns: df.rename(columns={'home_score': 'fthg'}, inplace=True)
+            if 'away_score' in df.columns: df.rename(columns={'away_score': 'ftag'}, inplace=True)
+            
+            # Mapeamento padrão do restante
             rename = {
-                'date':'Date', 'date_unix':'DateUnix',
-                'home_name':'HomeTeam', 'away_name':'AwayTeam',
-                'fthg':'FTHG', 'homeGoalCount':'FTHG', # Aceita os dois
-                'ftag':'FTAG', 'awayGoalCount':'FTAG', # Aceita os dois
+                'date':'Date', 'home_name':'HomeTeam', 'away_name':'AwayTeam',
                 'ht_goals_team_a':'HTHG', 'ht_goals_team_b':'HTAG',
                 'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=rename, inplace=True)
             
             # Garante que as colunas existam e sejam numéricas
-            for c in ['FTHG','FTAG','HTHG','HTAG','HC','AC']: 
+            for c in ['fthg','ftag','HTHG','HTAG','HC','AC']: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             
+            # Padroniza para Maiúsculas para facilitar cálculos abaixo
+            df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
+
+            # CÁLCULOS DAS COLUNAS DE ANÁLISE
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
             df['BTTS'] = ((df['FTHG'] > 0) & (df['FTAG'] > 0)).astype(int)
+            
+            # Quem venceu? (Fundamental para Odds 1x2)
             df['HomeWin'] = (df['FTHG'] > df['FTAG']).astype(int)
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
 
@@ -109,7 +120,7 @@ def treinar_ia(df):
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V25.0 - Fixed)...")
+    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V26.0 - Corretiva)...")
     try: df_recent, df_today = load_data()
     except: return
     if df_today.empty or df_recent.empty: return
@@ -120,29 +131,32 @@ def gerar_alerta():
         h, a = row.get('HomeTeam'), row.get('AwayTeam')
         if h in team_stats and a in team_stats:
             try:
-                # --- CÁLCULOS ---
+                # --- PREVISÃO IA ---
                 preds = model.predict_proba([[team_stats[h], team_stats[a]]])
                 prob_ia = preds[0][1] * 100 if preds.shape[1] == 2 else (100.0 if model.classes_[0] == 1 else 0.0)
                 
+                # --- DADOS HISTÓRICOS ---
                 stats_h = df_recent[df_recent['HomeTeam'] == h]
                 stats_a = df_recent[df_recent['AwayTeam'] == a]
                 if len(stats_h) < 3: stats_h = df_recent[(df_recent['HomeTeam']==h)|(df_recent['AwayTeam']==h)]
                 if len(stats_a) < 3: stats_a = df_recent[(df_recent['HomeTeam']==a)|(df_recent['AwayTeam']==a)]
 
                 if len(stats_h) >= 3 and len(stats_a) >= 3:
-                    # Probabilidades
+                    # Probabilidades (Médias)
                     p_05ht = (stats_h['Over05HT'].mean() + stats_a['Over05HT'].mean())/2*100
                     p_15ft = (stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean())/2*100
-                    p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100 
+                    p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100
                     p_btts = (stats_h['BTTS'].mean() + stats_a['BTTS'].mean())/2*100
+                    
+                    # 1x2 (Vitória/Empate/Derrota)
                     wh = stats_h['HomeWin'].mean() * 100
                     wa = stats_a['AwayWin'].mean() * 100
-                    wd = 100 - (wh + wa) 
-                    if wd < 0: wd = 0
+                    wd = 100 - (wh + wa) # Empate é o que sobra
+                    if wd < 0: wd = 0 # Segurança
                     
                     avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean())
 
-                    # --- GATILHOS ---
+                    # --- GATILHOS (Critérios para ENVIAR) ---
                     destaques = []
                     
                     if prob_ia >= 60: destaques.append(f"🤖 Over 2.5 (IA)")
@@ -152,12 +166,11 @@ def gerar_alerta():
                     if avg_corners >= 9.5: destaques.append("🚩 Over Cantos")
                     
                     header = ""
-                    # Regra de Zebra (Visitante vence >50% e Mandante <40%)
+                    # Regra de Zebra
                     if wa >= 50 and wh <= 40: destaques.append("🦓 ZEBRA/VALOR"); header = "🦓 ALERTA DE ZEBRA"
                     elif wh >= 80: header = "🔥 SUPER FAVORITO (CASA)"
                     elif wa >= 80: header = "🔥 SUPER FAVORITO (VISITANTE)"
                     
-                    # Se tiver destaque, monta o card
                     if destaques:
                         destaque_str = " | ".join(destaques)
                         if not header: header = "⚽ ANÁLISE PRÉ-JOGO"
@@ -184,6 +197,7 @@ def gerar_alerta():
                             txt += f"\n🚩 *CANTOS:* Avg {avg_corners:.1f}\n"
 
                         txt += "--------------------------------\n"
+                        txt += "⚠️ Aposte com Responsabilidade\n"
                         txt += "🤖 *Mestre dos Greens*"
                         
                         enviar_msg(txt)
