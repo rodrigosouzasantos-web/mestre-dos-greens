@@ -41,7 +41,6 @@ def load_data():
         try:
             r = requests.get(url)
             if r.status_code != 200: continue
-            # Tratamento de erro de decodificação
             try: content = r.content.decode('utf-8')
             except: content = r.content.decode('latin-1')
             
@@ -50,31 +49,30 @@ def load_data():
             
             df.columns = [c.strip().lower() for c in df.columns]
             rename = {'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam',
-                      'fthg':'FTHG','ftag':'FTAG'}
+                      'fthg':'FTHG','ftag':'FTAG','ht_goals_team_a':'HTHG','ht_goals_team_b':'HTAG'}
             df.rename(columns=rename, inplace=True)
             
-            # Garante números onde precisa (preenche vazios com 0 em vez de deletar a linha)
-            for c in ['FTHG','FTAG']: 
+            # Tratamento numérico
+            for c in ['FTHG','FTAG','HTHG','HTAG']: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
 
-            # Cria alvo
+            # --- CRIAÇÃO DAS COLUNAS DE MERCADO ---
+            df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
+            df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
+            df['BTTS'] = ((df['FTHG'] > 0) & (df['FTAG'] > 0)).astype(int)
+            df['HomeWin'] = (df['FTHG'] > df['FTAG']).astype(int)
+            df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
             
-            # Só guarda colunas essenciais para economizar memória
             if 'HomeTeam' in df.columns and 'AwayTeam' in df.columns:
-                all_dfs.append(df[['HomeTeam','AwayTeam','FTHG','FTAG','Over25FT']])
+                all_dfs.append(df[['HomeTeam','AwayTeam','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','FTHG','FTAG']])
         except: pass
             
     if not all_dfs: return pd.DataFrame(), pd.DataFrame()
 
     full_df = pd.concat(all_dfs, ignore_index=True)
-    
-    # EM VEZ DE FILTRAR POR ANO (QUE DAVA ERRO), PEGAMOS OS ÚLTIMOS 10.000 JOGOS
-    # Isso garante que temos dados, mesmo se a data estiver bagunçada
-    df_recent = full_df.tail(15000).copy()
-    
-    # Remove apenas se não tiver nome de time
+    df_recent = full_df.tail(15000).copy() # Pega os últimos 15k jogos
     df_recent.dropna(subset=['HomeTeam', 'AwayTeam'], inplace=True)
     
     print("🔄 Baixando grade de hoje...")
@@ -82,7 +80,6 @@ def load_data():
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
-        # Ajuste se colunas não tiverem nome
         if 'HomeTeam' not in df_today.columns:
              df_today['HomeTeam'] = df_today.iloc[:, 0]
              df_today['AwayTeam'] = df_today.iloc[:, 1]
@@ -95,10 +92,10 @@ def treinar_ia(df):
     if df.empty: return None, {}
 
     team_stats = {}
-    # Calcula força ofensiva média
     for team in pd.concat([df['HomeTeam'], df['AwayTeam']]).unique():
         games = df[(df['HomeTeam'] == team) | (df['AwayTeam'] == team)]
-        if len(games) < 3: continue # Reduzi exigência para 3 jogos
+        if len(games) < 3: continue 
+        # Média de gols totais nos jogos do time
         avg_goals = (games['FTHG'].sum() + games['FTAG'].sum()) / len(games)
         team_stats[team] = avg_goals
         
@@ -110,35 +107,30 @@ def treinar_ia(df):
             
     df_train = pd.DataFrame(model_data)
     
-    # Se não tiver dados suficientes, aborta sem quebrar
     if df_train.empty or len(df_train) < 10:
         return None, team_stats
 
-    model = RandomForestClassifier(n_estimators=50, random_state=42) # 50 arvores é mais leve e rápido
+    model = RandomForestClassifier(n_estimators=50, random_state=42)
     model.fit(df_train[['H', 'A']], df_train['Target'])
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V19.0 - Turbo)...")
+    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V20.0 - Sniper Ajustado)...")
     
     try:
         df_recent, df_today = load_data()
     except Exception as e:
-        enviar_msg(f"⚠️ Erro ao baixar dados: {str(e)}")
+        enviar_msg(f"⚠️ Erro dados: {str(e)}")
         return
 
     if df_today.empty:
         enviar_msg("⚠️ Grade vazia.")
         return
-    
-    if df_recent.empty:
-        enviar_msg("⚠️ Falha crítica no histórico.")
-        return
 
     model, team_stats = treinar_ia(df_recent)
     
     if not model:
-        enviar_msg("⚠️ IA precisa de mais dados para calibrar hoje.")
+        enviar_msg("⚠️ IA calibrando... dados insuficientes.")
         return
 
     greens = []
@@ -149,38 +141,80 @@ def gerar_alerta():
         
         if h in team_stats and a in team_stats:
             try:
-                # Proteção contra erro de índice (IndexError)
+                # 1. PREVISÃO IA (OVER 2.5)
                 preds = model.predict_proba([[team_stats[h], team_stats[a]]])
-                if preds.shape[1] == 2:
-                    prob_ia = preds[0][1] * 100
-                else:
-                    prob_ia = 100.0 if model.classes_[0] == 1 else 0.0
+                if preds.shape[1] == 2: prob_ia_over25 = preds[0][1] * 100
+                else: prob_ia_over25 = 100.0 if model.classes_[0] == 1 else 0.0
                 
-                tips = []
-                if prob_ia >= 70: tips.append(f"Over 2.5 ({prob_ia:.0f}%)")
+                # 2. ESTATÍSTICAS HISTÓRICAS (MÉDIAS SIMPLES)
+                stats_h = df_recent[df_recent['HomeTeam'] == h] # Jogos do Casa em Casa
+                stats_a = df_recent[df_recent['AwayTeam'] == a] # Jogos do Fora Fora
                 
-                # BTTS simplificado (Verifica apenas média simples)
-                stats_h = df_recent[df_recent['HomeTeam'] == h]
-                stats_a = df_recent[df_recent['AwayTeam'] == a]
-                if not stats_h.empty and not stats_a.empty:
-                    btts_rate = (((stats_h['FTHG']>0)&(stats_h['FTAG']>0)).mean() + ((stats_a['FTHG']>0)&(stats_a['FTAG']>0)).mean())/2
-                    if btts_rate >= 0.60: tips.append("BTTS")
+                # Se não tiver dados específicos Casa/Fora, tenta pegar geral
+                if len(stats_h) < 3: stats_h = df_recent[(df_recent['HomeTeam'] == h) | (df_recent['AwayTeam'] == h)]
+                if len(stats_a) < 3: stats_a = df_recent[(df_recent['HomeTeam'] == a) | (df_recent['AwayTeam'] == a)]
 
-                if tips:
-                    odd_justa = 100 / prob_ia if prob_ia > 0 else 0
-                    emoji = "🔥" if prob_ia > 85 else "💡"
+                if len(stats_h) >= 3 and len(stats_a) >= 3:
+                    # Cálculos das probabilidades históricas
+                    prob_05ht = (stats_h['Over05HT'].mean() + stats_a['Over05HT'].mean()) / 2 * 100
+                    prob_15ft = (stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean()) / 2 * 100
+                    prob_btts = (stats_h['BTTS'].mean() + stats_a['BTTS'].mean()) / 2 * 100
                     
-                    txt = f"{emoji} *{h} x {a}*\n"
-                    txt += f"🏆 {row.get('League', '-')}\n"
-                    txt += f"🤖 IA: {prob_ia:.1f}%\n"
-                    txt += f"🎯 Tip: {' + '.join(tips)}\n"
-                    txt += f"💰 Odd Justa: @{odd_justa:.2f}\n"
-                    greens.append(txt)
-            except:
-                continue # Se der erro em um jogo específico, pula para o próximo
+                    # Probabilidade de Vitória (Considerando mando de campo)
+                    # Casa vence em casa + Visitante perde fora (invertido)
+                    win_rate_home = stats_h['HomeWin'].mean() * 100
+                    win_rate_away = stats_a['AwayWin'].mean() * 100
+
+                    # --- GATILHOS (SUAS REGRAS) ---
+                    tips = []
+
+                    # Over 2.5 (IA) -> 60%
+                    if prob_ia_over25 >= 60: 
+                        tips.append(f"⚽ Over 2.5 (IA: {prob_ia_over25:.0f}%)")
+
+                    # Over 1.5 FT -> 80%
+                    if prob_15ft >= 80:
+                        tips.append(f"🛡️ Over 1.5 FT ({prob_15ft:.0f}%)")
+
+                    # Over 0.5 HT -> 75%
+                    if prob_05ht >= 75:
+                        tips.append(f"⚡ Over 0.5 HT ({prob_05ht:.0f}%)")
+                    
+                    # BTTS -> 60%
+                    if prob_btts >= 60:
+                        tips.append(f"🤝 Ambas Marcam ({prob_btts:.0f}%)")
+
+                    # Vitória Casa
+                    if 60 <= win_rate_home < 80:
+                        tips.append(f"🏠 Favorito: {h} ({win_rate_home:.0f}%)")
+                    elif win_rate_home >= 80:
+                        tips.append(f"🔥 SUPER FAVORITO: {h} ({win_rate_home:.0f}%)")
+
+                    # Vitória Visitante
+                    if 60 <= win_rate_away < 80:
+                        tips.append(f"✈️ Favorito: {a} ({win_rate_away:.0f}%)")
+                    elif win_rate_away >= 80:
+                        tips.append(f"🔥 SUPER FAVORITO: {a} ({win_rate_away:.0f}%)")
+
+                    # MONTAGEM DA MENSAGEM
+                    if tips:
+                        # Se tiver Over 2.5, calcula odd justa baseada nele, senão usa base 1.5
+                        base_prob = prob_ia_over25 if prob_ia_over25 >= 60 else prob_15ft
+                        odd_justa = 100 / base_prob if base_prob > 0 else 0
+                        
+                        txt = f"💎 *{h} x {a}*\n"
+                        txt += f"🏆 {row.get('League', '-')}\n"
+                        txt += f"⏰ {row.get('Time', '--:--')}\n"
+                        txt += f"📊 Análise:\n"
+                        for t in tips:
+                            txt += f"  • {t}\n"
+                        txt += f"\n💰 Odd Justa (Ref): @{odd_justa:.2f}\n"
+                        greens.append(txt)
+
+            except: continue
 
     if greens:
-        enviar_msg(f"🚨 *RELATÓRIO TURBO* 🚨\n\nEncontrei {len(greens)} oportunidades!")
+        enviar_msg(f"🚨 *Mestre dos Greens (V20)* 🚨\n\nEncontrei {len(greens)} jogos nos seus padrões!")
         bloco = ""
         for g in greens:
             if len(bloco) + len(g) > 3000:
@@ -189,7 +223,7 @@ def gerar_alerta():
             bloco += g + "\n➖➖➖➖➖➖➖\n"
         if bloco: enviar_msg(bloco)
     else:
-        enviar_msg("📊 IA analisou a grade e não encontrou entradas com +70% de confiança.")
+        enviar_msg("📊 Analisei tudo. Nenhum jogo bateu todos os seus critérios (60%~80%) hoje.")
 
 if __name__ == "__main__":
     gerar_alerta()
