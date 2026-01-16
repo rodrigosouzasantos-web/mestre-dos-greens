@@ -24,10 +24,18 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONFIGURAÇÃO TELEGRAM (NOVO) ---
-with st.sidebar.expander("📲 Configuração Telegram"):
-    TELEGRAM_TOKEN = st.text_input("Bot Token", type="password")
-    TELEGRAM_CHAT_ID = st.text_input("Chat ID")
+# --- CONFIGURAÇÃO TELEGRAM (AUTO-LOGIN) ---
+# Tenta pegar dos Segredos (Secrets) do Streamlit
+if "TELEGRAM_TOKEN" in st.secrets and "TELEGRAM_CHAT_ID" in st.secrets:
+    TELEGRAM_TOKEN = st.secrets["TELEGRAM_TOKEN"]
+    TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
+    telegram_status = "✅ Conectado via Secrets"
+else:
+    # Se não tiver secrets, pede manual
+    with st.sidebar.expander("📲 Configuração Telegram"):
+        TELEGRAM_TOKEN = st.text_input("Bot Token", type="password")
+        TELEGRAM_CHAT_ID = st.text_input("Chat ID")
+    telegram_status = "⚠️ Aguardando Configuração"
 
 def enviar_telegram(mensagem):
     if TELEGRAM_TOKEN and TELEGRAM_CHAT_ID:
@@ -39,7 +47,7 @@ def enviar_telegram(mensagem):
         except: return False
     return False
 
-# --- BANCO DE DADOS (LINKS V8) ---
+# --- BANCO DE DADOS (LINKS) ---
 URLS_LIGAS = {
     "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
     "Belgica Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Belgium_Pro_League_2016-2025.csv",
@@ -95,7 +103,7 @@ def load_data():
                 'date': 'Date', 'date_unix': 'DateUnix', 'home_name': 'HomeTeam', 'away_name': 'AwayTeam', 'home': 'HomeTeam', 'away': 'AwayTeam',
                 'fthg': 'FTHG', 'ftag': 'FTAG', 'homegoalcount': 'FTHG', 'awaygoalcount': 'FTAG',
                 'team_a_corners': 'HC', 'team_b_corners': 'AC', 'corners_home': 'HC', 'corners_away': 'AC',
-                'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG' # NOVO: Gols HT
+                'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG'
             }
             df.rename(columns=rename_map, inplace=True)
             if 'Date' not in df.columns:
@@ -110,10 +118,10 @@ def load_data():
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             
-            # Cria colunas calculadas para o histórico (NOVO)
+            # Colunas Calculadas
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
-            df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int) # Alvo para IA
+            df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
 
             cols_needed = ['Date', 'League_Custom', 'HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'HTHG', 'HTAG', 'HC', 'AC', 'Over05HT', 'Over15FT', 'Over25FT']
             for c in cols_needed: 
@@ -151,7 +159,7 @@ def gerar_tip_visual(stats):
     if not tips: return "⚠️ Sem Padrão Claro"
     return " | ".join(tips)
 
-# --- IA ENGINE 🧠 (NOVO) ---
+# --- IA ENGINE 🧠 ---
 @st.cache_resource
 def treinar_ia(df):
     team_stats = {}
@@ -184,12 +192,11 @@ if df_recent is not None:
     # Treino IA (Silencioso)
     model, team_stats = treinar_ia(df_recent)
 
-    st.sidebar.markdown("## 🧭 Menu")
-    # Menu V8 + Opção Telegram
-    menu = st.sidebar.radio("", ["🎯 Jogos de Hoje (+ Tips)", "⚽ Analisador de Times (Detalhado)", "🏆 Raio-X Ligas (Visual)", "📡 Disparar Telegram"])
+    st.sidebar.markdown(f"## 🧭 Navegação\nStatus: {telegram_status}")
+    menu = st.sidebar.radio("", ["🎯 Jogos de Hoje (+ Tips)", "⚽ Analisador de Times", "🏆 Raio-X Ligas", "📡 Disparar Telegram"])
     
     # ----------------------------------------------------
-    # MÓDULO 1: JOGOS DE HOJE + TIPS + IA + HT/FT
+    # MÓDULO 1: JOGOS DE HOJE + TIPS + IA
     # ----------------------------------------------------
     if menu == "🎯 Jogos de Hoje (+ Tips)":
         st.header("🎯 Grade do Dia & Tips da IA")
@@ -198,23 +205,19 @@ if df_recent is not None:
             for idx, row in df_today.iterrows():
                 h, a = row.get('HomeTeam', 'Casa'), row.get('AwayTeam', 'Fora')
                 
-                # Buscas
                 stats_h = df_recent[df_recent['HomeTeam'] == h]
                 stats_a = df_recent[df_recent['AwayTeam'] == a]
                 if len(stats_h) < 3: stats_h = df_recent[df_recent['HomeTeam'].str.contains(h, case=False, na=False)]
                 if len(stats_a) < 3: stats_a = df_recent[df_recent['AwayTeam'].str.contains(a, case=False, na=False)]
                 
                 if len(stats_h) >= 3 and len(stats_a) >= 3:
-                    # Estatísticas Básicas (V8)
                     over25 = (((stats_h['FTHG']+stats_h['FTAG']) > 2.5).mean() + ((stats_a['FTHG']+stats_a['FTAG']) > 2.5).mean()) / 2 * 100
                     btts = (((stats_h['FTHG']>0)&(stats_h['FTAG']>0)).mean() + ((stats_a['FTHG']>0)&(stats_a['FTAG']>0)).mean()) / 2 * 100
                     cantos = ((stats_h['HC']+stats_h['AC']).mean() + (stats_a['HC']+stats_a['AC']).mean()) / 2
                     
-                    # Novas Métricas (V11 - HT/FT)
                     prob_05ht = ((stats_h['Over05HT'].mean() + stats_a['Over05HT'].mean()) / 2) * 100
                     prob_15ft = ((stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean()) / 2) * 100
 
-                    # IA Prediction (V11)
                     prob_ia = 0
                     if model and h in team_stats and a in team_stats:
                         prob_ia = model.predict_proba([[team_stats[h], team_stats[a]]])[0][1] * 100
@@ -254,121 +257,56 @@ if df_recent is not None:
         else: st.warning("Sem jogos na grade hoje.")
 
     # ----------------------------------------------------
-    # MÓDULO 2: ANALISADOR DE TIMES (VISUAL V8)
+    # MÓDULO 2: ANALISADOR VISUAL (V8)
     # ----------------------------------------------------
-    elif menu == "⚽ Analisador de Times (Detalhado)":
-        st.header("🕵️‍♂️ Scout Profundo de Equipes")
-        
+    elif menu == "⚽ Analisador de Times":
+        st.header("🕵️‍♂️ Scout Detalhado")
         all_teams = sorted(list(set(df_recent['HomeTeam'].unique()) | set(df_recent['AwayTeam'].unique())))
-        team = st.selectbox("🔍 Pesquise o Time (Digite para filtrar):", all_teams, index=None, placeholder="Ex: Flamengo, Real Madrid...")
+        team = st.selectbox("🔍 Pesquise o Time:", all_teams, index=None, placeholder="Digite o nome...")
         
         if team:
             df_home = df_recent[df_recent['HomeTeam'] == team]
             df_away = df_recent[df_recent['AwayTeam'] == team]
             df_all = pd.concat([df_home, df_away]).sort_values('Date', ascending=False)
             if not df_all.empty:
-                st.markdown(f"### 📊 Raio-X: {team}")
                 c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.markdown("##### 🌍 Geral")
-                    st.metric("Jogos", len(df_all))
-                    st.metric("Média Gols (Total)", f"{(df_all['FTHG'] + df_all['FTAG']).mean():.2f}")
-                    st.metric("BTTS %", f"{((df_all['FTHG']>0) & (df_all['FTAG']>0)).mean() * 100:.1f}%")
-                with c2:
-                    st.markdown("##### 🏠 Em Casa")
-                    if not df_home.empty:
-                        st.write(f"**Gols Pró:** {df_home['FTHG'].mean():.2f}")
-                        st.write(f"**Gols Sofridos:** {df_home['FTAG'].mean():.2f}")
-                        st.write(f"**Cantos Pró:** {df_home['HC'].mean():.1f}")
-                    else: st.info("Sem dados em casa")
-                with c3:
-                    st.markdown("##### ✈️ Fora de Casa")
-                    if not df_away.empty:
-                        st.write(f"**Gols Pró:** {df_away['FTAG'].mean():.2f}")
-                        st.write(f"**Gols Sofridos:** {df_away['FTHG'].mean():.2f}")
-                        st.write(f"**Cantos Pró:** {df_away['AC'].mean():.1f}")
-                    else: st.info("Sem dados fora")
+                c1.metric("Geral", f"{(df_all['FTHG']+df_all['FTAG']).mean():.2f} Gols")
+                c2.metric("Casa", f"{df_home['FTHG'].mean() if not df_home.empty else 0:.2f} Gols")
+                c3.metric("Fora", f"{df_away['FTAG'].mean() if not df_away.empty else 0:.2f} Gols")
                 
-                st.divider()
-                st.subheader("📈 Comparativo: Casa x Fora")
+                st.subheader("📈 Casa vs Fora")
                 data_chart = pd.DataFrame({
                     'Situação': ['Casa', 'Casa', 'Fora', 'Fora'],
                     'Tipo': ['Gols Feitos', 'Gols Sofridos', 'Gols Feitos', 'Gols Sofridos'],
                     'Média': [df_home['FTHG'].mean() if not df_home.empty else 0, df_home['FTAG'].mean() if not df_home.empty else 0,
                               df_away['FTAG'].mean() if not df_away.empty else 0, df_away['FTHG'].mean() if not df_away.empty else 0]
                 })
-                fig = px.bar(data_chart, x='Situação', y='Média', color='Tipo', barmode='group', height=300, color_discrete_sequence=['#00ff00', '#ff0000'])
+                fig = px.bar(data_chart, x='Situação', y='Média', color='Tipo', barmode='group', height=300)
                 st.plotly_chart(fig, use_container_width=True)
-                st.subheader("📜 Últimas 10 Partidas")
-                st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HC', 'AC']].head(10), hide_index=True, use_container_width=True)
+                st.dataframe(df_all.head(10), hide_index=True, use_container_width=True)
 
     # ----------------------------------------------------
-    # MÓDULO 3: RAIO-X LIGAS (VISUAL V8)
+    # MÓDULO 3: RAIO-X LIGAS (V8)
     # ----------------------------------------------------
-    elif menu == "🏆 Raio-X Ligas (Visual)":
-        st.header("🌎 Inteligência de Campeonatos")
-        
-        stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
-            'Jogos': len(x),
-            'Média Gols': (x['FTHG']+x['FTAG']).mean(),
-            'Over 2.5 (%)': ((x['FTHG']+x['FTAG']) > 2.5).mean() * 100,
-            'BTTS (%)': ((x['FTHG']>0) & (x['FTAG']>0)).mean() * 100,
-            'Média Cantos': (x['HC']+x['AC']).mean()
+    elif menu == "🏆 Raio-X Ligas":
+        st.header("🌎 Estatísticas de Ligas")
+        stats = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
+            'Jogos': len(x), 'Média Gols': (x['FTHG']+x['FTAG']).mean(),
+            'Over 2.5 (%)': ((x['FTHG']+x['FTAG'])>2.5).mean()*100,
+            'BTTS (%)': ((x['FTHG']>0)&(x['FTAG']>0)).mean()*100,
+            'Cantos': (x['HC']+x['AC']).mean()
         })).sort_values('Média Gols', ascending=False).reset_index()
-
-        ligas_disponiveis = sorted(stats_liga['League_Custom'].unique())
-        ligas_selecionadas = st.multiselect(
-            "🔍 Filtrar Ligas (Digite para buscar e comparar):", 
-            ligas_disponiveis,
-            placeholder="Selecione uma ou mais ligas para filtrar..."
-        )
         
-        if ligas_selecionadas:
-            stats_liga = stats_liga[stats_liga['League_Custom'].isin(ligas_selecionadas)]
-
-        if not stats_liga.empty:
-            top_gols = stats_liga.sort_values('Média Gols', ascending=False).iloc[0]
-            top_cantos = stats_liga.sort_values('Média Cantos', ascending=False).iloc[0]
-            
-            k1, k2, k3 = st.columns(3)
-            k1.metric("🔥 Mais Goleadora (Filtro)", top_gols['League_Custom'], f"{top_gols['Média Gols']:.2f} Gols/Jogo")
-            k2.metric("🚩 Mais Cantos (Filtro)", top_cantos['League_Custom'], f"{top_cantos['Média Cantos']:.1f} Cantos/Jogo")
-            k3.metric("📊 Ligas Exibidas", len(stats_liga))
-            st.divider()
-
-            tab_gols, tab_cantos = st.tabs(["⚽ Análise de Gols", "🚩 Análise de Cantos"])
-            
-            with tab_gols:
-                st.subheader("Comparativo: Gols e Over 2.5")
-                fig_gols = px.bar(stats_liga, x='League_Custom', y='Média Gols', 
-                                 color='Over 2.5 (%)', title="Média de Gols por Liga (Cor = % Over 2.5)",
-                                 color_continuous_scale='RdYlGn', height=400)
-                st.plotly_chart(fig_gols, use_container_width=True)
-                
-            with tab_cantos:
-                st.subheader("Comparativo: Escanteios")
-                fig_cantos = px.bar(stats_liga.sort_values('Média Cantos', ascending=False), 
-                                    x='League_Custom', y='Média Cantos', 
-                                    title="Média de Escanteios por Liga",
-                                    color_discrete_sequence=['#00ccff'], height=400)
-                st.plotly_chart(fig_cantos, use_container_width=True)
-
-            st.subheader("📋 Tabela Detalhada")
-            st.dataframe(
-                stats_liga,
-                column_config={
-                    "League_Custom": st.column_config.TextColumn("Campeonato"),
-                    "Média Gols": st.column_config.NumberColumn(format="%.2f ⚽"),
-                    "Over 2.5 (%)": st.column_config.ProgressColumn("Over 2.5", format="%.1f%%", min_value=0, max_value=100),
-                    "BTTS (%)": st.column_config.ProgressColumn("BTTS (Ambas)", format="%.1f%%", min_value=0, max_value=100),
-                    "Média Cantos": st.column_config.NumberColumn(format="%.1f 🚩"),
-                },
-                hide_index=True, use_container_width=True, height=500
-            )
-        else: st.warning("Nenhuma liga selecionada.")
+        sel_ligas = st.multiselect("Filtrar Ligas:", sorted(stats['League_Custom'].unique()))
+        if sel_ligas: stats = stats[stats['League_Custom'].isin(sel_ligas)]
+        
+        c1, c2 = st.tabs(["Gols", "Cantos"])
+        with c1: st.plotly_chart(px.bar(stats, x='League_Custom', y='Média Gols', color='Over 2.5 (%)'), use_container_width=True)
+        with c2: st.plotly_chart(px.bar(stats, x='League_Custom', y='Cantos'), use_container_width=True)
+        st.dataframe(stats, hide_index=True, use_container_width=True)
 
     # ----------------------------------------------------
-    # MÓDULO 4: TELEGRAM (NOVO)
+    # MÓDULO 4: TELEGRAM
     # ----------------------------------------------------
     elif menu == "📡 Disparar Telegram":
         st.header("📲 Enviar Sinal")
@@ -378,5 +316,4 @@ if df_recent is not None:
                 if enviar_telegram(msg): st.success("Enviado!")
                 else: st.error("Erro. Verifique token.")
 
-else:
-    st.error("Erro crítico ao carregar dados.")
+else: st.error("Erro crítico ao carregar dados.")
