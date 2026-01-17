@@ -1,10 +1,14 @@
-name: Mestre dos Greens - Alerta Diário
+name: Robô Mestre dos Greens (Diário)
 
 on:
   schedule:
-    # Roda todo dia às 11:00 UTC (08:00 Brasília)
-    - cron: '0 11 * * *'
-  workflow_dispatch: # Botão para testar manualmente
+    # Horários UTC:
+    # 12:00 UTC = 09:00 Brasil
+    # 13:00 UTC = 10:00 Brasil
+    # 15:00 UTC = 12:00 Brasil
+    - cron: '0 12,13,15 * * *'
+
+  workflow_dispatch: # Permite rodar manualmente para testar
 
 jobs:
   build:
@@ -23,6 +27,5 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: Executar Robô
-        run: |
-          python app.py
+      - name: Rodar o Robô
+        run: python app.py
