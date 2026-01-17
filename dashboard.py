@@ -188,7 +188,7 @@ if not df_recent.empty:
         st.sidebar.markdown("---")
         
     st.sidebar.markdown("## 🧭 Navegação")
-    menu = st.sidebar.radio("Selecione:", ["🎯 Grade & Oportunidades", "⚔️ Comparador Manual (H2H)", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
+    menu = st.sidebar.radio("Selecione:", ["🎯 Grade & Oportunidades", "⚔️ Simulador Manual (H2H)", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
     # ==============================================================================
     # 1. GRADE DO DIA
@@ -291,11 +291,11 @@ if not df_recent.empty:
         else: st.warning("Aguardando dados da grade...")
 
     # ==============================================================================
-    # NOVO MÓDULO: COMPARADOR MANUAL (H2H)
+    # 2. SIMULADOR MANUAL (H2H) - ATUALIZADO V35
     # ==============================================================================
-    elif menu == "⚔️ Comparador Manual (H2H)":
-        st.header("⚔️ Simulador de Confrontos (H2H)")
-        st.markdown("Selecione dois times manualmente para gerar uma previsão, mesmo que o jogo não esteja na grade.")
+    elif menu == "⚔️ Simulador Manual (H2H)":
+        st.header("⚔️ Simulador Manual de Confrontos")
+        st.markdown("Selecione dois times manualmente para gerar uma previsão completa (Winner, Gols, Cantos).")
         
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         
@@ -317,23 +317,48 @@ if not df_recent.empty:
                 if len(sa) < 5: sa = df_recent[(df_recent['HomeTeam']==team_b)|(df_recent['AwayTeam']==team_b)]
                 
                 if len(sh) > 0 and len(sa) > 0:
-                    # IA
+                    # IA Over 2.5
                     p_ia = model.predict_proba([[team_stats.get(team_a,0), team_stats.get(team_b,0)]])[0][1]*100 if model and team_a in team_stats and team_b in team_stats else 50.0
                     
-                    # Médias
+                    # Médias de Gols e Cantos
                     avg_gols_a = (sh['FTHG'] + sh['FTAG']).mean()
                     avg_gols_b = (sa['FTHG'] + sa['FTAG']).mean()
                     prob_btts = (sh['BTTS'].mean() + sa['BTTS'].mean()) / 2 * 100
-                    prob_over15 = (sh['Over15FT'].mean() + sa['Over15FT'].mean()) / 2 * 100
                     avg_cantos = (sh['HC'].mean() + sa['AC'].mean())
+                    
+                    # NOVAS MÉTRICAS (V35)
+                    prob_05ht = (sh['Over05HT'].mean() + sa['Over05HT'].mean()) / 2 * 100
+                    prob_15ft = (sh['Over15FT'].mean() + sa['Over15FT'].mean()) / 2 * 100
+                    
+                    # Probabilidade de Vitória (Simples baseada em histórico)
+                    prob_home_win = sh['HomeWin'].mean() * 100
+                    prob_away_win = sa['AwayWin'].mean() * 100
+                    
+                    # Status de Favorito
+                    status_jogo = "⚖️ Jogo Equilibrado"
+                    if prob_home_win >= 80: status_jogo = f"🔥 SUPER FAVORITO: {team_a}"
+                    elif prob_away_win >= 80: status_jogo = f"🔥 SUPER FAVORITO: {team_b}"
+                    elif prob_home_win >= 50: status_jogo = f"✅ Favorito: {team_a}"
+                    elif prob_away_win >= 50: status_jogo = f"✅ Favorito: {team_b}"
                     
                     # Exibição Visual
                     st.divider()
+                    st.subheader(status_jogo)
+                    
+                    # Fileira 1: IA e Gols Seguros
                     k1, k2, k3 = st.columns(3)
                     k1.metric("🤖 Prob. Over 2.5 (IA)", f"{p_ia:.1f}%")
-                    k2.metric("🤝 Prob. BTTS", f"{prob_btts:.1f}%")
-                    k3.metric("🚩 Média Cantos", f"{avg_cantos:.1f}")
+                    k2.metric("🛡️ Prob. Over 1.5 FT", f"{prob_15ft:.1f}%")
+                    k3.metric("⚡ Prob. Over 0.5 HT", f"{prob_05ht:.1f}%")
                     
+                    # Fileira 2: Vencedor e BTTS
+                    k4, k5, k6, k7 = st.columns(4)
+                    k4.metric("🏠 Vitória Casa", f"{prob_home_win:.0f}%")
+                    k5.metric("✈️ Vitória Visitante", f"{prob_away_win:.0f}%")
+                    k6.metric("🤝 Prob. BTTS", f"{prob_btts:.1f}%")
+                    k7.metric("🚩 Média Cantos", f"{avg_cantos:.1f}")
+                    
+                    st.divider()
                     st.subheader("📊 Comparativo Direto")
                     comp_data = pd.DataFrame({
                         'Métrica': ['Média Gols (Total)', 'Gols Feitos', 'Gols Sofridos', 'Win Rate (%)'],
@@ -352,7 +377,7 @@ if not df_recent.empty:
                     })
                     st.dataframe(comp_data, use_container_width=True, hide_index=True)
                     
-                    # Gráfico Radar (Estilo FIFA)
+                    # Gráfico Radar
                     categories = ['Ataque', 'Defesa', 'Cantos', 'Intensidade (Gols)']
                     fig = go.Figure()
                     fig.add_trace(go.Scatterpolar(
@@ -370,7 +395,7 @@ if not df_recent.empty:
                     st.warning("Dados insuficientes para gerar simulação precisa.")
 
     # ==============================================================================
-    # 2. ANALISADOR DE TIMES
+    # 3. ANALISADOR DE TIMES
     # ==============================================================================
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo de Equipes")
@@ -416,7 +441,7 @@ if not df_recent.empty:
                 st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
     # ==============================================================================
-    # 3. RAIO-X LIGAS
+    # 4. RAIO-X LIGAS
     # ==============================================================================
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência de Campeonatos")
