@@ -16,7 +16,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V42",
+    page_title="Mestre dos Greens PRO - V43",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -68,7 +68,7 @@ def get_odd_justa(prob):
     return 100 / prob
 
 # ==============================================================================
-# 1. BANCO DE DADOS
+# 1. BANCO DE DADOS (COMPLETO)
 # ==============================================================================
 URLS_HISTORICAS = {
     "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
@@ -205,7 +205,6 @@ def load_data():
 # CÁLCULOS PONDERADOS
 # ==============================================================================
 def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_goal='FTHG', col_away_goal='FTAG'):
-    # Flexibilidade para calcular HT (HTHG/HTAG) ou FT (FTHG/FTAG)
     df_league = df_historico[df_historico['League_Custom'] == league]
     if df_league.empty: return None, None, None, None
     
@@ -230,7 +229,7 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
     att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
     strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
     
-    # VISITANTE (DEFESA) - Sofre gol do mandante (col_home_goal)
+    # VISITANTE (DEFESA)
     def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
     strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
     
@@ -240,7 +239,7 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
     att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
     strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
     
-    # MANDANTE (DEFESA) - Sofre gol do visitante (col_away_goal)
+    # MANDANTE (DEFESA)
     def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
     strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
     
@@ -249,22 +248,20 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
     return xg_home, xg_away, strength_att_h, strength_att_a
 
 def calcular_cantos_esperados(df_historico, team_home, team_away):
-    # Fórmula Cruzada: ((Media Pro A + Media Contra B) + (Media Pro B + Media Contra A)) / 2
-    # Na verdade, isso equivale a soma das expectativas individuais.
-    
+    # Fórmula Cruzada
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
     df_a = df_historico[df_historico['AwayTeam'] == team_away]
     
     if df_h.empty or df_a.empty: return 0.0
 
-    # Média Pró Time A (Casa) + Média Contra Time B (Fora)
+    # (Média Pró A + Média Contra B) / 2
     media_pro_a = df_h['HC'].mean()
-    media_contra_b = df_a['HC'].mean() # HC aqui são cantos que o mandante fez no visitante (Contra B)
+    media_contra_b = df_a['HC'].mean() 
     exp_cantos_a = (media_pro_a + media_contra_b) / 2
     
-    # Média Pró Time B (Fora) + Média Contra Time A (Casa)
+    # (Média Pró B + Média Contra A) / 2
     media_pro_b = df_a['AC'].mean()
-    media_contra_a = df_h['AC'].mean() # AC aqui são cantos que o visitante fez no mandante (Contra A)
+    media_contra_a = df_h['AC'].mean() 
     exp_cantos_b = (media_pro_b + media_contra_a) / 2
     
     return exp_cantos_a + exp_cantos_b
@@ -293,10 +290,10 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    # Eixo X (Topo) = Visitante | Eixo Y (Esquerda) = Mandante
-    # Cores Premium: Dark to Gold
+    # Layout conforme solicitado: Mandante à Direita (Eixo Y), Visitante em Cima (Eixo X)
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     
+    # Para atender "Mandante do lado direito", movemos o YAxis para a direita
     fig = go.Figure(data=go.Heatmap(
         z=matriz,
         x=[f"<b>{away_name}</b> {i}" for i in range(6)],
@@ -311,16 +308,16 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     fig.update_layout(
         title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
         xaxis=dict(side="top", title="", tickfont=dict(color='#cfcfcf')),
-        yaxis=dict(title="", tickfont=dict(color='#cfcfcf')),
+        yaxis=dict(side="right", title="", tickfont=dict(color='#cfcfcf')), # Y-Axis na direita
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         height=500,
-        margin=dict(t=80, l=100)
+        margin=dict(t=80, l=20, r=100)
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V42")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V43")
 
 df_recent, df_today, full_df = load_data()
 
@@ -341,7 +338,7 @@ if not df_recent.empty:
     # 1. GRADE DO DIA
     # ==============================================================================
     if menu == "🎯 Grade do Dia":
-        st.header("🎯 Grade do Dia (Poisson V42)")
+        st.header("🎯 Grade do Dia (Poisson V43)")
         if not df_today.empty:
             jogos_hoje = [f"{row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
             jogo_selecionado = st.selectbox("👉 Selecione um jogo:", jogos_hoje, index=0)
@@ -352,29 +349,21 @@ if not df_recent.empty:
             except: liga_match = None
             
             if liga_match:
-                # 1. Full Time xG
                 xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'FTHG', 'FTAG')
-                # 2. Half Time xG (Para calcular Over 0.5 HT)
                 xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'HTHG', 'HTAG')
-                # 3. Cantos
                 exp_cantos = calcular_cantos_esperados(df_recent, home_sel, away_sel)
                 
                 if xg_h is not None:
                     st.divider()
                     st.markdown(f"### 📊 Raio-X: {home_sel} vs {away_sel}")
                     
-                    # Métricas Principais
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("⚽ xG Esperado (FT)", f"{xg_h+xg_a:.2f}")
                     c2.metric("🚩 Cantos Esperados", f"{exp_cantos:.1f}")
                     c3.metric("xG Casa", f"{xg_h:.2f}")
                     c4.metric("xG Fora", f"{xg_a:.2f}")
                     
-                    # Matriz e Probabilidades FT
                     matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
-                    
-                    # Probabilidade HT (Poisson separado para o 1º Tempo)
-                    # Probabilidade de 0x0 no HT
                     prob_00_ht = poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht)
                     prob_over05_ht = (1 - prob_00_ht) * 100
                     
@@ -401,7 +390,7 @@ if not df_recent.empty:
     # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V42")
+        st.header("⚔️ Simulador Manual V43")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -433,7 +422,7 @@ if not df_recent.empty:
     # 3. ANALISADOR DE TIMES
     # ==============================================================================
     elif menu == "🔎 Analisador de Times":
-        st.header("🔎 Scout Profundo (V42)")
+        st.header("🔎 Scout Profundo (V43)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         
