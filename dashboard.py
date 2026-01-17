@@ -9,7 +9,7 @@ from PIL import Image # Importante para abrir a logo
 # --- CARREGA A LOGO ---
 try:
     # Tenta carregar a imagem 'logo.jpg' que deve estar na mesma pasta
-    logo = Image.open("logo.jpg") 
+    logo = Image.open("logo.jpg.jpg") 
     icon_page = logo
 except:
     # Se não achar a imagem, usa um emoji de bola como fallback
