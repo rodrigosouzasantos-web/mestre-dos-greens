@@ -4,11 +4,22 @@ import requests
 import io
 import plotly.express as px
 from sklearn.ensemble import RandomForestClassifier
+from PIL import Image # Importante para abrir a logo
+
+# --- CARREGA A LOGO ---
+try:
+    # Tenta carregar a imagem 'logo.jpg' que deve estar na mesma pasta
+    logo = Image.open("logo.jpg") 
+    icon_page = logo
+except:
+    # Se não achar a imagem, usa um emoji de bola como fallback
+    logo = None
+    icon_page = "⚽"
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
     page_title="Mestre dos Greens PRO",
-    page_icon="⚽",
+    page_icon=icon_page, # Aqui define o ícone da aba do navegador
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -19,6 +30,8 @@ st.markdown("""
     .metric-card {background-color: #1e2130; border: 1px solid #313547; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 2px 2px 10px rgba(0,0,0,0.2);}
     div[data-testid="stMetricValue"] { font-size: 20px; color: #00ff00; }
     div[data-testid="stMetricLabel"] { font-size: 14px; }
+    /* Ajuste para centralizar a logo na sidebar se quiser */
+    [data-testid="stSidebar"] > div:first-child { text-align: center; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -221,6 +234,11 @@ df_recent, df_today = load_data()
 if not df_recent.empty:
     model, team_stats = treinar_ia(df_recent)
     
+    # --- MOSTRA A LOGO NA SIDEBAR ---
+    if logo:
+        st.sidebar.image(logo, use_column_width=True)
+        st.sidebar.markdown("---") # Uma linha separadora para ficar bonito
+        
     st.sidebar.markdown("## 🧭 Navegação")
     menu = st.sidebar.radio("Selecione:", ["🎯 Grade & Oportunidades", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
