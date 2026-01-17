@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V44.1",
+    page_title="Mestre dos Greens PRO - V45",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -226,21 +226,17 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
         w_5 = full_df.tail(5)[col_name].mean()
         return (w_geral * 0.10) + (w_venue * 0.40) + (w_10 * 0.20) + (w_5 * 0.30)
 
-    # MANDANTE (ATAQUE)
     att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
     strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
     
-    # VISITANTE (DEFESA)
     def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
     strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
     
     xg_home = strength_att_h * strength_def_a * avg_goals_home
     
-    # VISITANTE (ATAQUE)
     att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
     strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
     
-    # MANDANTE (DEFESA)
     def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
     strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
     
@@ -251,22 +247,18 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
     df_a = df_historico[df_historico['AwayTeam'] == team_away]
-    
     if df_h.empty or df_a.empty: return 0.0, {}
 
-    # (Média Pró A + Média Contra B) / 2
     media_pro_a = df_h['HC'].mean()
     media_contra_b = df_a['HC'].mean() 
     exp_cantos_a = (media_pro_a + media_contra_b) / 2
     
-    # (Média Pró B + Média Contra A) / 2
     media_pro_b = df_a['AC'].mean()
     media_contra_a = df_h['AC'].mean() 
     exp_cantos_b = (media_pro_b + media_contra_a) / 2
     
     total_exp = exp_cantos_a + exp_cantos_b
     
-    # Cálculo Poisson para probabilidades
     probs = {
         "Over 8.5": poisson.sf(8, total_exp) * 100,
         "Over 9.5": poisson.sf(9, total_exp) * 100,
@@ -299,9 +291,8 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    # Layout LIMPO: Mandante à Direita (Eixo Y), Visitante em Cima (Eixo X)
+    # CORREÇÃO V45: Eixos Independentes
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
-    
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
 
@@ -316,20 +307,44 @@ def exibir_matriz_visual(matriz, home_name, away_name):
         showscale=False
     ))
     
-    # Ajuste fino: Remove título do gráfico para não sobrepor
-    # Títulos dos eixos em NEGRITO e MAIORES
     fig.update_layout(
-        xaxis=dict(side="top", title=f"<b>{away_name}</b> (Visitante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14)),
-        yaxis=dict(side="right", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14)),
+        title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
+        
+        # Eixo X (Topo): Apenas Números
+        xaxis=dict(
+            side="top", 
+            title=None, 
+            tickfont=dict(color='#cfcfcf', size=14),
+            fixedrange=True
+        ),
+        
+        # Eixo Y (Direita): Números + Nome do Mandante
+        yaxis=dict(
+            side="right", 
+            title=f"<b>{home_name}</b> (Mandante)", 
+            title_font=dict(size=18, color='#fff'), 
+            tickfont=dict(color='#cfcfcf', size=14),
+            fixedrange=True
+        ),
+        
+        # Anotação para Nome do Visitante (Embaixo)
+        annotations=[
+            dict(
+                x=0.5, y=-0.15, xref='paper', yref='paper',
+                text=f"<b>{away_name}</b> (Visitante)",
+                showarrow=False,
+                font=dict(size=18, color='#fff')
+            )
+        ],
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        height=450,
-        margin=dict(t=80, l=20, r=80, b=20)
+        height=500,
+        margin=dict(t=80, l=20, r=80, b=60)
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V44.1")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V45")
 
 df_recent, df_today, full_df = load_data()
 
@@ -350,7 +365,7 @@ if not df_recent.empty:
     # 1. GRADE DO DIA
     # ==============================================================================
     if menu == "🎯 Grade do Dia":
-        st.header("🎯 Grade do Dia (Poisson V44.1)")
+        st.header("🎯 Grade do Dia (Poisson V45)")
         if not df_today.empty:
             jogos_hoje = [f"{row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
             jogo_selecionado = st.selectbox("👉 Selecione um jogo:", jogos_hoje, index=0)
@@ -361,11 +376,8 @@ if not df_recent.empty:
             except: liga_match = None
             
             if liga_match:
-                # 1. Full Time xG
                 xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'FTHG', 'FTAG')
-                # 2. Half Time xG
                 xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'HTHG', 'HTAG')
-                # 3. Cantos & Probs
                 exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
                 
                 if xg_h is not None:
@@ -378,12 +390,7 @@ if not df_recent.empty:
                     c3.metric("xG Casa", f"{xg_h:.2f}")
                     c4.metric("xG Fora", f"{xg_a:.2f}")
                     
-                    # Matriz (Sem título interno para não sobrepor)
                     matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
-                    
-                    # Título Externo no Streamlit
-                    st.subheader("🎲 Matriz de Probabilidades (Placar Exato)")
-                    
                     prob_00_ht = poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht)
                     prob_over05_ht = (1 - prob_00_ht) * 100
                     
@@ -412,7 +419,7 @@ if not df_recent.empty:
     # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V44.1")
+        st.header("⚔️ Simulador Manual V45")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -432,7 +439,6 @@ if not df_recent.empty:
                     matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
                     prob_over05_ht = (1 - (poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht))) * 100
                     
-                    st.subheader("🎲 Matriz de Probabilidades")
                     exibir_matriz_visual(matriz, team_a, team_b)
                     
                     k1, k2, k3, k4 = st.columns(4)
@@ -442,7 +448,7 @@ if not df_recent.empty:
                     k4.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
     # ==============================================================================
-    # 3. ANALISADOR DE TIMES (COM GRÁFICOS)
+    # 3. ANALISADOR DE TIMES
     # ==============================================================================
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
@@ -484,7 +490,7 @@ if not df_recent.empty:
                 st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
     # ==============================================================================
-    # 4. RAIO-X LIGAS (COM GRÁFICOS RESTAURADOS)
+    # 4. RAIO-X LIGAS
     # ==============================================================================
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência de Ligas")
