@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V46",
+    page_title="Mestre dos Greens PRO - V45",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -46,21 +46,6 @@ st.markdown("""
         transition: 0.3s;
     }
     div.stButton > button:hover { background-color: #d4ac0d; color: #fff; }
-    
-    /* Lista de Placares */
-    .placar-row {
-        background-color: #1f2937;
-        padding: 10px;
-        border-radius: 5px;
-        margin-bottom: 5px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-left: 4px solid #f1c40f;
-    }
-    .placar-score { font-size: 18px; font-weight: bold; color: #fff; }
-    .placar-prob { font-size: 16px; color: #f1c40f; font-weight: bold; }
-    .placar-odd { font-size: 14px; color: #cfcfcf; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -241,21 +226,17 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
         w_5 = full_df.tail(5)[col_name].mean()
         return (w_geral * 0.10) + (w_venue * 0.40) + (w_10 * 0.20) + (w_5 * 0.30)
 
-    # MANDANTE (ATAQUE)
     att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
     strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
     
-    # VISITANTE (DEFESA)
     def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
     strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
     
     xg_home = strength_att_h * strength_def_a * avg_goals_home
     
-    # VISITANTE (ATAQUE)
     att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
     strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
     
-    # MANDANTE (DEFESA)
     def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
     strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
     
@@ -288,9 +269,6 @@ def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
 
 def gerar_matriz_poisson(xg_home, xg_away):
     matrix = []
-    # Lista para armazenar top placares (placar, prob)
-    top_scores = []
-    
     probs_dict = {"HomeWin":0,"Draw":0,"AwayWin":0,"Over15":0,"Over25":0,"Under35":0,"BTTS":0}
     
     for h in range(6):
@@ -298,8 +276,6 @@ def gerar_matriz_poisson(xg_home, xg_away):
         for a in range(6):
             prob = poisson.pmf(h, xg_home) * poisson.pmf(a, xg_away)
             row.append(prob * 100)
-            
-            top_scores.append({'Placar': f"{h}x{a}", 'Prob': prob*100})
             
             if h > a: probs_dict["HomeWin"] += prob
             elif h < a: probs_dict["AwayWin"] += prob
@@ -312,13 +288,10 @@ def gerar_matriz_poisson(xg_home, xg_away):
             if h > 0 and a > 0: probs_dict["BTTS"] += prob
             
         matrix.append(row)
-        
-    # Ordena top scores
-    top_scores = sorted(top_scores, key=lambda x: x['Prob'], reverse=True)[:5]
-    
-    return matrix, probs_dict, top_scores
+    return matrix, probs_dict
 
 def exibir_matriz_visual(matriz, home_name, away_name):
+    # CORREÇÃO V45: Eixos Independentes
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
@@ -334,11 +307,10 @@ def exibir_matriz_visual(matriz, home_name, away_name):
         showscale=False
     ))
     
-    # CORREÇÃO V46: Mandante à ESQUERDA, Visitante com Nome Embaixo e Números no Topo
     fig.update_layout(
         title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
         
-        # Eixo X (Visitante): Números no TOPO (side="top")
+        # Eixo X (Topo): Apenas Números
         xaxis=dict(
             side="top", 
             title=None, 
@@ -346,9 +318,9 @@ def exibir_matriz_visual(matriz, home_name, away_name):
             fixedrange=True
         ),
         
-        # Eixo Y (Mandante): Números e Título na ESQUERDA (side="left")
+        # Eixo Y (Direita): Números + Nome do Mandante
         yaxis=dict(
-            side="left", 
+            side="right", 
             title=f"<b>{home_name}</b> (Mandante)", 
             title_font=dict(size=18, color='#fff'), 
             tickfont=dict(color='#cfcfcf', size=14),
@@ -367,12 +339,12 @@ def exibir_matriz_visual(matriz, home_name, away_name):
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
         height=500,
-        margin=dict(t=80, l=80, r=20, b=60)
+        margin=dict(t=80, l=20, r=80, b=60)
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V46")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V45")
 
 df_recent, df_today, full_df = load_data()
 
@@ -393,7 +365,7 @@ if not df_recent.empty:
     # 1. GRADE DO DIA
     # ==============================================================================
     if menu == "🎯 Grade do Dia":
-        st.header("🎯 Grade do Dia (Poisson V46)")
+        st.header("🎯 Grade do Dia (Poisson V45)")
         if not df_today.empty:
             jogos_hoje = [f"{row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
             jogo_selecionado = st.selectbox("👉 Selecione um jogo:", jogos_hoje, index=0)
@@ -418,48 +390,26 @@ if not df_recent.empty:
                     c3.metric("xG Casa", f"{xg_h:.2f}")
                     c4.metric("xG Fora", f"{xg_a:.2f}")
                     
-                    matriz, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
-                    
+                    matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
                     prob_00_ht = poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht)
                     prob_over05_ht = (1 - prob_00_ht) * 100
                     
-                    # Layout Matriz + Botão Lista
-                    col_matriz, col_lista = st.columns([2, 1])
-                    
+                    col_matriz, col_probs = st.columns([1.5, 1])
                     with col_matriz:
                         exibir_matriz_visual(matriz, home_sel, away_sel)
                     
-                    with col_lista:
-                        st.subheader("📋 Top Placares")
-                        # Botão que "revela" a lista (na verdade já exibe, mas estilizado)
-                        if st.button("👁️ Ver Lista Detalhada"):
-                            for score in top_scores:
-                                odd_j = get_odd_justa(score['Prob'])
-                                st.markdown(f"""
-                                <div class="placar-row">
-                                    <span class="placar-score">{score['Placar']}</span>
-                                    <span class="placar-prob">{score['Prob']:.1f}%</span>
-                                    <span class="placar-odd">@{odd_j:.2f}</span>
-                                </div>
-                                """, unsafe_allow_html=True)
-                        else:
-                            st.info("Clique acima para ver os placares mais prováveis.")
-                    
-                    st.divider()
-                    st.subheader("📈 Probabilidades Reais")
-                    k1, k2, k3, k4, k5 = st.columns(5)
-                    k1.metric("Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
-                    k2.metric("Empate", f"{probs['Draw']*100:.1f}%")
-                    k3.metric("Vitória Visitante", f"{probs['AwayWin']*100:.1f}%")
-                    k4.metric("Over 1.5 FT", f"{probs['Over15']*100:.1f}%")
-                    k5.metric("Over 2.5 FT", f"{probs['Over25']*100:.1f}%")
-                    
-                    j1, j2, j3, j4, j5 = st.columns(5)
-                    j1.metric("Over 0.5 HT", f"{prob_over05_ht:.1f}%")
-                    j2.metric("BTTS (Ambas)", f"{probs['BTTS']*100:.1f}%")
-                    j3.metric("Over 8.5 Cantos", f"{probs_cantos['Over 8.5']:.1f}%")
-                    j4.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
-                    j5.metric("Over 10.5 Cantos", f"{probs_cantos['Over 10.5']:.1f}%")
+                    with col_probs:
+                        st.subheader("📈 Probabilidades Reais")
+                        st.success(f"⚡ Over 0.5 HT: {prob_over05_ht:.1f}%")
+                        st.success(f"🛡️ Over 1.5 FT: {probs['Over15']*100:.1f}%")
+                        st.success(f"🔥 Over 2.5 FT: {probs['Over25']*100:.1f}%")
+                        st.info(f"🧱 Under 3.5 FT: {probs['Under35']*100:.1f}%")
+                        st.warning(f"🤝 BTTS: {probs['BTTS']*100:.1f}%")
+                        st.markdown("---")
+                        st.markdown("🚩 **Probabilidades de Cantos:**")
+                        st.write(f"• Over 8.5: **{probs_cantos['Over 8.5']:.1f}%**")
+                        st.write(f"• Over 9.5: **{probs_cantos['Over 9.5']:.1f}%**")
+                        st.write(f"• Over 10.5: **{probs_cantos['Over 10.5']:.1f}%**")
 
                 else: st.warning("Dados insuficientes.")
             else: st.warning("Liga não encontrada.")
@@ -469,7 +419,7 @@ if not df_recent.empty:
     # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V46")
+        st.header("⚔️ Simulador Manual V45")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -486,25 +436,11 @@ if not df_recent.empty:
                 
                 if xg_h:
                     st.success(f"Liga Base: {liga_sim}")
-                    matriz, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
+                    matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
                     prob_over05_ht = (1 - (poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht))) * 100
                     
-                    c_mat, c_list = st.columns([2,1])
-                    with c_mat:
-                        exibir_matriz_visual(matriz, team_a, team_b)
-                    with c_list:
-                        st.subheader("📋 Top Placares")
-                        for score in top_scores:
-                            odd_j = get_odd_justa(score['Prob'])
-                            st.markdown(f"""
-                            <div class="placar-row">
-                                <span class="placar-score">{score['Placar']}</span>
-                                <span class="placar-prob">{score['Prob']:.1f}%</span>
-                                <span class="placar-odd">@{odd_j:.2f}</span>
-                            </div>
-                            """, unsafe_allow_html=True)
+                    exibir_matriz_visual(matriz, team_a, team_b)
                     
-                    st.divider()
                     k1, k2, k3, k4 = st.columns(4)
                     k1.metric("Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
                     k2.metric("Over 0.5 HT", f"{prob_over05_ht:.1f}%")
