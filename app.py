@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import io
 from sklearn.ensemble import RandomForestClassifier
+from datetime import datetime, timedelta, timezone
 import warnings
 
 warnings.filterwarnings('ignore')
@@ -11,7 +12,7 @@ TELEGRAM_TOKEN = "8571442533:AAFbqfHsE1oTdwt2yarJGFpqWgST3-UIUwA"
 TELEGRAM_CHAT_ID = "-1003590805331"
 
 # ==============================================================================
-# 1. BANCO DE DADOS HISTÓRICO (DADOS PESADOS)
+# 1. BANCO DE DADOS (HISTÓRICO)
 # ==============================================================================
 URLS_HISTORICAS = {
     "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
@@ -46,7 +47,7 @@ URLS_HISTORICAS = {
 }
 
 # ==============================================================================
-# 2. BANCO DE DADOS ATUAL (DADOS "FRESCOS")
+# 2. BANCO DE DADOS (ATUAL) - 2025/2026
 # ==============================================================================
 URLS_ATUAIS = {
     "Argentina_Primera_División_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Argentina_Primera_Divisi%C3%B3n_2025.csv",
@@ -93,11 +94,8 @@ def get_odd_justa(prob):
 
 def load_data():
     all_dfs = []
-    
-    # 1. Combina as duas listas de URLs
     TODAS_URLS = {**URLS_HISTORICAS, **URLS_ATUAIS}
 
-    # 2. Loop de Carregamento
     for nome, url in TODAS_URLS.items():
         try:
             r = requests.get(url)
@@ -107,14 +105,11 @@ def load_data():
             
             df.columns = [c.strip().lower() for c in df.columns]
             
-            # Mapeamento
             map_cols = {'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag',
                         'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 'team_a_corners': 'HC', 'team_b_corners': 'AC'}
             df.rename(columns=map_cols, inplace=True)
             
-            if 'date' not in df.columns and 'date_unix' in df.columns:
-                df['date'] = pd.to_datetime(df['date_unix'], unit='s')
-            
+            if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
             for c in ['fthg','ftag','HTHG','HTAG','HC','AC']: 
@@ -129,7 +124,6 @@ def load_data():
             df['HomeWin'] = (df['FTHG'] > df['FTAG']).astype(int)
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
             
-            # Limpa o nome da liga
             nome_limpo = nome.replace(" Atual", "")
             df['League_Custom'] = nome_limpo
             
@@ -140,23 +134,17 @@ def load_data():
     full_df = pd.concat(all_dfs, ignore_index=True)
     full_df['Date'] = pd.to_datetime(full_df['Date'], dayfirst=True, errors='coerce')
 
-    # --- 3. FILTRO DE DUPLICIDADE (Crucial para fusão) ---
     full_df.drop_duplicates(subset=['Date', 'HomeTeam', 'AwayTeam'], keep='last', inplace=True)
     
-    # --- 4. FILTRO 2023+ (Foco no Momento) ---
     df_recent = full_df[full_df['Date'].dt.year >= 2023].copy()
     
-    # --- 5. GRADE DE HOJE (COM ODDS REAIS) ---
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
         if 'HomeTeam' not in df_today.columns: df_today['HomeTeam'], df_today['AwayTeam'] = df_today.iloc[:, 0], df_today.iloc[:, 1]
         
-        cols_odds = [
-            'odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes',
-            'odds_ft_over15', 'odds_1st_half_over05', 'odds_corners_over_95'
-        ]
+        cols_odds = ['odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes', 'odds_ft_over15', 'odds_1st_half_over05', 'odds_corners_over_95']
         for c in cols_odds:
             if c not in df_today.columns: df_today[c] = 0.0
             else: df_today[c] = pd.to_numeric(df_today[c], errors='coerce').fillna(0.0)
@@ -185,16 +173,39 @@ def treinar_ia(df):
     return model, team_stats
 
 def gerar_alerta():
-    enviar_msg("🔎 *Mestre dos Greens*: Iniciando varredura (V33 - Espelho)...")
+    # Define Fuso Horário Brasil (UTC-3)
+    fuso_brasil = timezone(timedelta(hours=-3))
+    agora = datetime.now(fuso_brasil)
+    
+    # Mensagem de Log para o Telegram (opcional, para você saber que rodou)
+    hora_formatada = agora.strftime('%H:%M')
+    enviar_msg(f"🔎 *Mestre dos Greens*: Varredura das {hora_formatada} iniciada...")
+    
     try: df_recent, df_today = load_data()
     except: return
     if df_today.empty or df_recent.empty: return
     model, team_stats = treinar_ia(df_recent)
     if not model: return
 
-    greens = []
     for idx, row in df_today.iterrows():
         h, a = row.get('HomeTeam'), row.get('AwayTeam')
+        
+        # --- LÓGICA DE FILTRO DE HORÁRIO (NOVA) ---
+        hora_jogo_str = row.get('Time')
+        if hora_jogo_str and isinstance(hora_jogo_str, str):
+            try:
+                # O CSV geralmente vem como "HH:MM". Criamos uma data completa com o dia de hoje.
+                hora_jogo_dt = datetime.strptime(hora_jogo_str, '%H:%M').replace(
+                    year=agora.year, month=agora.month, day=agora.day, tzinfo=fuso_brasil
+                )
+                
+                # Se o jogo já começou ou começou há pouco (margem de tolerância), ignoramos.
+                # Só mandamos jogos que começam DAQUI PARA FRENTE.
+                if hora_jogo_dt < agora:
+                    continue # Pula este jogo, pois já passou
+            except:
+                pass # Se der erro na data, segue o baile e analisa
+        
         if h in team_stats and a in team_stats:
             try:
                 # --- PREVISÃO ---
@@ -212,6 +223,7 @@ def gerar_alerta():
                     p_15ft = (stats_h['Over15FT'].mean() + stats_a['Over15FT'].mean())/2*100
                     p_25ft = (stats_h['Over25FT'].mean() + stats_a['Over25FT'].mean())/2*100
                     p_btts = (stats_h['BTTS'].mean() + stats_a['BTTS'].mean())/2*100
+                    
                     wh = stats_h['HomeWin'].mean() * 100
                     wa = stats_a['AwayWin'].mean() * 100
                     wd = 100 - (wh + wa)
@@ -219,7 +231,7 @@ def gerar_alerta():
                     
                     avg_corners = (stats_h['HC'].mean() + stats_a['AC'].mean())
 
-                    # --- GATILHOS (IGUAL AO DASHBOARD) ---
+                    # --- GATILHOS (Critérios de Destaque) ---
                     destaques = []
                     if prob_ia >= 60: destaques.append(f"🤖 Over 2.5")
                     if p_15ft >= 80: destaques.append("🛡️ Over 1.5")
@@ -228,16 +240,19 @@ def gerar_alerta():
                     if avg_corners >= 9.5: destaques.append("🚩 Cantos")
                     
                     header = ""
-                    # Lógica de Zebra
-                    if wa >= 50 and wh <= 40: destaques.append("🦓 ZEBRA/VALOR"); header = "🦓 ALERTA DE ZEBRA"
-                    elif wh >= 80: header = "🔥 SUPER FAVORITO (CASA)"
-                    elif wa >= 80: header = "🔥 SUPER FAVORITO (VISITANTE)"
+                    if wh >= 80: 
+                        header = "🔥 SUPER FAVORITO (CASA)"
+                        destaques.append(f"✅ Vence: {h}")
+                    elif wa >= 80: 
+                        header = "🔥 SUPER FAVORITO (VISITANTE)"
+                        destaques.append(f"✅ Vence: {a}")
+                    elif wh >= 50: header = "✅ FAVORITO (CASA)"
+                    elif wa >= 50: header = "✅ FAVORITO (VISITANTE)"
                     
                     if destaques:
                         destaque_str = " | ".join(destaques)
                         if not header: header = "⚽ ANÁLISE PRÉ-JOGO"
                         
-                        # --- ODDS REAIS ---
                         odd_real_h = row.get('odds_ft_1', 0)
                         odd_real_d = row.get('odds_ft_x', 0)
                         odd_real_a = row.get('odds_ft_2', 0)
@@ -278,5 +293,7 @@ def gerar_alerta():
                         enviar_msg(txt)
             except: continue
 
+if __name__ == "__main__":
+    gerar_alerta()
 if __name__ == "__main__":
     gerar_alerta()
