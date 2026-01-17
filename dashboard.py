@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V44",
+    page_title="Mestre dos Greens PRO - V44.1",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -249,7 +249,6 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
     return xg_home, xg_away, strength_att_h, strength_att_a
 
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
-    # Fórmula Cruzada
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
     df_a = df_historico[df_historico['AwayTeam'] == team_away]
     
@@ -268,7 +267,6 @@ def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     total_exp = exp_cantos_a + exp_cantos_b
     
     # Cálculo Poisson para probabilidades
-    # Over 8.5, 9.5, 10.5
     probs = {
         "Over 8.5": poisson.sf(8, total_exp) * 100,
         "Over 9.5": poisson.sf(9, total_exp) * 100,
@@ -302,10 +300,8 @@ def gerar_matriz_poisson(xg_home, xg_away):
 
 def exibir_matriz_visual(matriz, home_name, away_name):
     # Layout LIMPO: Mandante à Direita (Eixo Y), Visitante em Cima (Eixo X)
-    # Nomes apenas nos títulos, não nas células.
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     
-    # Eixos simples
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
 
@@ -320,19 +316,20 @@ def exibir_matriz_visual(matriz, home_name, away_name):
         showscale=False
     ))
     
+    # Ajuste fino: Remove título do gráfico para não sobrepor
+    # Títulos dos eixos em NEGRITO e MAIORES
     fig.update_layout(
-        title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
         xaxis=dict(side="top", title=f"<b>{away_name}</b> (Visitante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14)),
         yaxis=dict(side="right", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14)),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        height=500,
-        margin=dict(t=100, l=20, r=100)
+        height=450,
+        margin=dict(t=80, l=20, r=80, b=20)
     )
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V44")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V44.1")
 
 df_recent, df_today, full_df = load_data()
 
@@ -353,7 +350,7 @@ if not df_recent.empty:
     # 1. GRADE DO DIA
     # ==============================================================================
     if menu == "🎯 Grade do Dia":
-        st.header("🎯 Grade do Dia (Poisson V44)")
+        st.header("🎯 Grade do Dia (Poisson V44.1)")
         if not df_today.empty:
             jogos_hoje = [f"{row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
             jogo_selecionado = st.selectbox("👉 Selecione um jogo:", jogos_hoje, index=0)
@@ -366,7 +363,7 @@ if not df_recent.empty:
             if liga_match:
                 # 1. Full Time xG
                 xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'FTHG', 'FTAG')
-                # 2. Half Time xG (Para calcular Over 0.5 HT)
+                # 2. Half Time xG
                 xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'HTHG', 'HTAG')
                 # 3. Cantos & Probs
                 exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
@@ -375,17 +372,18 @@ if not df_recent.empty:
                     st.divider()
                     st.markdown(f"### 📊 Raio-X: {home_sel} vs {away_sel}")
                     
-                    # Métricas Principais
                     c1, c2, c3, c4 = st.columns(4)
                     c1.metric("⚽ xG Esperado (FT)", f"{xg_h+xg_a:.2f}")
                     c2.metric("🚩 Cantos Esperados", f"{exp_cantos:.1f}")
                     c3.metric("xG Casa", f"{xg_h:.2f}")
                     c4.metric("xG Fora", f"{xg_a:.2f}")
                     
-                    # Matriz e Probabilidades FT
+                    # Matriz (Sem título interno para não sobrepor)
                     matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
                     
-                    # Probabilidade HT
+                    # Título Externo no Streamlit
+                    st.subheader("🎲 Matriz de Probabilidades (Placar Exato)")
+                    
                     prob_00_ht = poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht)
                     prob_over05_ht = (1 - prob_00_ht) * 100
                     
@@ -414,7 +412,7 @@ if not df_recent.empty:
     # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V44")
+        st.header("⚔️ Simulador Manual V44.1")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -434,6 +432,7 @@ if not df_recent.empty:
                     matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
                     prob_over05_ht = (1 - (poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht))) * 100
                     
+                    st.subheader("🎲 Matriz de Probabilidades")
                     exibir_matriz_visual(matriz, team_a, team_b)
                     
                     k1, k2, k3, k4 = st.columns(4)
@@ -458,7 +457,6 @@ if not df_recent.empty:
             if not df_t_all.empty:
                 st.markdown(f"### 📊 Estatísticas: {sel_time}")
                 
-                # Gráfico 1: Gols Pró vs Sofridos (Bar Chart)
                 goals_data = pd.DataFrame({
                     "Tipo": ["Gols Pró (Casa)", "Gols Sofridos (Casa)", "Gols Pró (Fora)", "Gols Sofridos (Fora)"],
                     "Média": [
@@ -470,13 +468,8 @@ if not df_recent.empty:
                 })
                 fig_goals = px.bar(goals_data, x="Tipo", y="Média", color="Tipo", title="Média de Gols (Casa vs Fora)")
                 
-                # Gráfico 2: Resultados (Pie Chart)
                 wins = df_t_all[(df_t_all['HomeTeam']==sel_time) & (df_t_all['HomeWin']==1)].shape[0] + \
                        df_t_all[(df_t_all['AwayTeam']==sel_time) & (df_t_all['AwayWin']==1)].shape[0]
-                draws = len(df_t_all) - (wins + (len(df_t_all)-wins)) # Simplificação p/ exemplo, ideal seria calcular losses exatos
-                losses = len(df_t_all) - wins # (Losses + Draws) na verdade. Ajustar p/ precisão:
-                
-                # Recalculando Losses exatos
                 losses = df_t_all[(df_t_all['HomeTeam']==sel_time) & (df_t_all['AwayWin']==1)].shape[0] + \
                          df_t_all[(df_t_all['AwayTeam']==sel_time) & (df_t_all['HomeWin']==1)].shape[0]
                 draws = len(df_t_all) - (wins + losses)
@@ -502,7 +495,6 @@ if not df_recent.empty:
             'Cantos': (x['HC']+x['AC']).mean()
         })).reset_index()
         
-        # Gráfico de Barras Degradê
         fig_gols = px.bar(stats_liga.sort_values('Média Gols', ascending=False).head(20), 
                           x='League_Custom', y='Média Gols', 
                           color='Over 2.5 %', 
