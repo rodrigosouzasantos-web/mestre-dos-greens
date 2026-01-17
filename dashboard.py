@@ -2,14 +2,15 @@ import streamlit as st
 import pandas as pd
 import requests
 import io
+import math
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.ensemble import RandomForestClassifier
+from scipy.stats import poisson
 from PIL import Image
 
 # --- CARREGA A LOGO ---
 try:
-    logo = Image.open("logo.jpg.jpg") 
+    logo = Image.open("logo.jpg") 
     icon_page = logo
 except:
     logo = None
@@ -17,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO",
+    page_title="Mestre dos Greens PRO - V40",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -30,8 +31,8 @@ st.markdown("""
     div[data-testid="stMetricValue"] { font-size: 20px; color: #00ff00; }
     div[data-testid="stMetricLabel"] { font-size: 14px; }
     [data-testid="stSidebar"] > div:first-child { text-align: center; }
-    /* Botão de Refresh */
     div.stButton > button { width: 100%; border-radius: 8px; font-weight: bold; }
+    .poisson-cell { text-align: center; padding: 8px; border: 1px solid #444; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -90,7 +91,35 @@ URLS_HISTORICAS = {
 }
 
 URLS_ATUAIS = {
-    # Cole aqui os links da temporada atual (Raw)
+    "Argentina_Primera_División_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Argentina_Primera_Divisi%C3%B3n_2025.csv",
+    "Belgium_Pro_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Belgium_Pro_League_2025-2026.csv",
+    "Brasileirão_Série_A_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Brasileir%C3%A3o_S%C3%A9rie_A_2025-2026.csv",
+    "Colombia_Primera_Liga_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Colombia_Primera_Liga_2025.csv",
+    "Croatia_HNL_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Croatia_HNL_2025-2026.csv",
+    "Denmark_Superliga_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Denmark_Superliga_2025-2026.csv",
+    "England_Premier_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/England_Premier_League_2025-2026.csv",
+    "Finland_Veikkausliiga_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Finland_Veikkausliiga_2025.csv",
+    "France_Ligue_1_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/France_Ligue_1_2025-2026.csv",
+    "Germany_Bundesliga_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Germany_Bundesliga_2025-2026.csv",
+    "Germany_Bundesliga_2_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Germany_Bundesliga_2_2025-2026.csv",
+    "Greece_Super_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Greece_Super_League_2025-2026.csv",
+    "Italy_Serie_A_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_A_2025-2026.csv",
+    "Italy_Serie_B_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_B_2025-2026.csv",
+    "Japan_J1_League_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Japan_J1_League_2025.csv",
+    "LigaPro_Portugal_2a_división_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
+    "Liga_Portugal_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
+    "Mexico_Liga_MX_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
+    "Netherlands_Eredivisie_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Netherlands_Eredivisie_2025-2026.csv",
+    "Norway_Eliteserien_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Norway_Eliteserien_2025.csv",
+    "Russian_Premier_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Russian_Premier_League_2025-2026.csv",
+    "Saudi_Pro_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Saudi_Pro_League_2025-2026.csv",
+    "South_Korea_K_League_1_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/South_Korea_K_League_1_2025.csv",
+    "Spain_La_Liga_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_La_Liga_2025-2026.csv",
+    "Spain_Segunda_División_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2025-2026.csv",
+    "Sweden_Allsvenskan_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
+    "Turkey_Süper_Lig_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
+    "USA_Major_League_Soccer_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
+    "Uruguay_Primera_División_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
 }
 
 URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/todays_matches/todays_matches.csv"
@@ -141,6 +170,7 @@ def load_data():
     full_df['Date'] = pd.to_datetime(full_df['Date'], dayfirst=True, errors='coerce')
     full_df.drop_duplicates(subset=['Date', 'HomeTeam', 'AwayTeam'], keep='last', inplace=True)
     
+    # Filtro temporal (2023 em diante)
     df_recent = full_df[full_df['Date'].dt.year >= 2023].copy()
     
     try:
@@ -157,295 +187,237 @@ def load_data():
         df_today.drop_duplicates(subset=['HomeTeam', 'AwayTeam'], keep='first', inplace=True)
     except: df_today = pd.DataFrame()
     
-    return df_recent, df_today
+    return df_recent, df_today, full_df
 
-# --- IA ---
-@st.cache_resource
-def treinar_ia(df):
-    team_stats = {}
-    for team in pd.concat([df['HomeTeam'], df['AwayTeam']]).unique():
-        games = df[(df['HomeTeam'] == team) | (df['AwayTeam'] == team)]
-        if len(games) < 3: continue
-        team_stats[team] = (games['FTHG'].sum() + games['FTAG'].sum()) / len(games)
-    model_data = []
-    for idx, row in df.iterrows():
-        h, a = row['HomeTeam'], row['AwayTeam']
-        if h in team_stats and a in team_stats: model_data.append({'H': team_stats[h], 'A': team_stats[a], 'Target': row['Over25FT']})
-    df_train = pd.DataFrame(model_data)
-    if df_train.empty: return None, None
-    model = RandomForestClassifier(n_estimators=50, random_state=42)
-    model.fit(df_train[['H', 'A']], df_train['Target'])
-    return model, team_stats
+# ==============================================================================
+# CÁLCULOS PONDERADOS (PDF V40)
+# ==============================================================================
+def calcular_xg_ponderado(df_historico, league, team_home, team_away):
+    # 1. Filtra dados da Liga (para Médias da Liga)
+    df_league = df_historico[df_historico['League_Custom'] == league]
+    if df_league.empty: return None, None, None, None
+    
+    # Médias da Liga
+    avg_goals_home = df_league['FTHG'].mean()
+    avg_goals_away = df_league['FTAG'].mean()
+    
+    # 2. Dados dos Times
+    df_h = df_historico[df_historico['HomeTeam'] == team_home].sort_values('Date')
+    df_a = df_historico[df_historico['AwayTeam'] == team_away].sort_values('Date')
+    df_h_all = df_historico[(df_historico['HomeTeam'] == team_home) | (df_historico['AwayTeam'] == team_home)].sort_values('Date')
+    df_a_all = df_historico[(df_historico['HomeTeam'] == team_away) | (df_historico['AwayTeam'] == team_away)].sort_values('Date')
+
+    if len(df_h_all) < 5 or len(df_a_all) < 5: return None, None, None, None
+
+    # Função Auxiliar de Pesos
+    def get_weighted_avg(full_df, venue_df, col_name):
+        # 10% Geral
+        w_geral = full_df[col_name].mean()
+        # 40% Venue (Casa ou Fora)
+        w_venue = venue_df[col_name].mean() if not venue_df.empty else w_geral
+        # 20% Last 10
+        w_10 = full_df.tail(10)[col_name].mean()
+        # 30% Last 5
+        w_5 = full_df.tail(5)[col_name].mean()
+        
+        return (w_geral * 0.10) + (w_venue * 0.40) + (w_10 * 0.20) + (w_5 * 0.30)
+
+    # CÁLCULO MANDANTE (HOME)
+    # Ataque Ponderado (GF)
+    att_h_pond = get_weighted_avg(df_h_all, df_h, 'FTHG')
+    # Força de Ataque (Ataque Ponderado / Média Liga Home)
+    strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
+    
+    # CÁLCULO VISITANTE (AWAY) - DEFESA
+    # Defesa Ponderada (Goals Against - FTHG quando ele é visitante)
+    # Nota: Quando o visitante joga fora, os gols que ele sofre são os FTHG do mandante adversário.
+    # No dataframe, se o time é AwayTeam, os gols sofridos são 'FTHG'.
+    def_a_pond = get_weighted_avg(df_a_all, df_a, 'FTHG') # Usa FTHG pois é o gol que ele tomou fora
+    # Força de Defesa (Defesa Ponderada / Média Liga Home) - Compara com o ataque médio dos mandantes
+    strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
+    
+    # xG FINAL MANDANTE
+    xg_home = strength_att_h * strength_def_a * avg_goals_home
+    
+    # ---------------------------------------------------------
+    
+    # CÁLCULO VISITANTE (AWAY) - ATAQUE
+    att_a_pond = get_weighted_avg(df_a_all, df_a, 'FTAG')
+    strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
+    
+    # CÁLCULO MANDANTE (HOME) - DEFESA
+    # Quando o mandante joga em casa, os gols que ele sofre são 'FTAG'
+    def_h_pond = get_weighted_avg(df_h_all, df_h, 'FTAG')
+    strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
+    
+    # xG FINAL VISITANTE
+    xg_away = strength_att_a * strength_def_h * avg_goals_away
+    
+    return xg_home, xg_away, strength_att_h, strength_att_a
+
+def gerar_matriz_poisson(xg_home, xg_away):
+    # Gera probabilidades para placares de 0x0 até 5x5
+    matrix = []
+    probs_dict = {
+        "HomeWin": 0, "Draw": 0, "AwayWin": 0,
+        "Over15": 0, "Over25": 0, "BTTS": 0,
+        "Exact_1x0": 0, "Exact_0x1": 0, "Exact_1x1": 0
+    }
+    
+    for h in range(6):
+        row = []
+        for a in range(6):
+            prob = poisson.pmf(h, xg_home) * poisson.pmf(a, xg_away)
+            row.append(prob * 100) # Em porcentagem
+            
+            if h > a: probs_dict["HomeWin"] += prob
+            elif h < a: probs_dict["AwayWin"] += prob
+            else: probs_dict["Draw"] += prob
+            
+            if (h + a) > 1.5: probs_dict["Over15"] += prob
+            if (h + a) > 2.5: probs_dict["Over25"] += prob
+            if h > 0 and a > 0: probs_dict["BTTS"] += prob
+            
+            if h==1 and a==0: probs_dict["Exact_1x0"] = prob
+            if h==0 and a==1: probs_dict["Exact_0x1"] = prob
+            if h==1 and a==1: probs_dict["Exact_1x1"] = prob
+            
+        matrix.append(row)
+        
+    return matrix, probs_dict
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V40")
 
-df_recent, df_today = load_data()
+df_recent, df_today, full_df = load_data()
 
 if not df_recent.empty:
-    model, team_stats = treinar_ia(df_recent)
-    
     if logo:
         st.sidebar.image(logo, use_container_width=True)
         st.sidebar.markdown("---")
     
-    # --- BOTÃO DE REFRESH (NOVO!) ---
     if st.sidebar.button("🔄 Forçar Atualização"):
         st.cache_data.clear()
         st.rerun()
     st.sidebar.markdown("---")
         
     st.sidebar.markdown("## 🧭 Navegação")
-    menu = st.sidebar.radio("Selecione:", ["🎯 Grade & Oportunidades", "⚔️ Simulador Manual (H2H)", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
+    menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia & Detalhes", "⚔️ Simulador Manual (H2H)", "🔎 Analisador de Times"])
     
     # ==============================================================================
-    # 1. GRADE DO DIA
+    # 1. GRADE DO DIA & DETALHES (COM MATRIZ)
     # ==============================================================================
-    if menu == "🎯 Grade & Oportunidades":
-        st.header("🎯 Grade do Dia & Oportunidades")
+    if menu == "🎯 Grade do Dia & Detalhes":
+        st.header("🎯 Grade do Dia")
+        
         if not df_today.empty:
-            lista_visual = []
-            dados_para_envio = {}
-            for idx, row in df_today.iterrows():
-                h, a = row['HomeTeam'], row['AwayTeam']
-                sh = df_recent[df_recent['HomeTeam'] == h]; sa = df_recent[df_recent['AwayTeam'] == a]
-                if len(sh) < 3: sh = df_recent[(df_recent['HomeTeam']==h)|(df_recent['AwayTeam']==h)]
-                if len(sa) < 3: sa = df_recent[(df_recent['HomeTeam']==a)|(df_recent['AwayTeam']==a)]
-
-                if len(sh)>=3 and len(sa)>=3:
-                    p_ia = model.predict_proba([[team_stats.get(h,0), team_stats.get(a,0)]])[0][1]*100 if model and h in team_stats and a in team_stats else 0
-                    p_05ht = (sh['Over05HT'].mean() + sa['Over05HT'].mean())/2*100
-                    p_15ft = (sh['Over15FT'].mean() + sa['Over15FT'].mean())/2*100
-                    p_btts = (sh['BTTS'].mean() + sa['BTTS'].mean())/2*100
-                    avg_corners = (sh['HC'].mean() + sa['AC'].mean())
-                    wh = sh['HomeWin'].mean() * 100
-                    wa = sa['AwayWin'].mean() * 100
-                    wd = 100 - (wh + wa)
-                    if wd < 0: wd = 0
-                    
-                    tips_list = []
-                    if p_ia >= 60: tips_list.append("🤖 Over 2.5")
-                    if p_15ft >= 80: tips_list.append("🛡️ Over 1.5")
-                    if p_05ht >= 75: tips_list.append("⚡ 0.5 HT")
-                    if p_btts >= 60: tips_list.append("🤝 BTTS")
-                    if avg_corners >= 9.5: tips_list.append("🚩 Cantos")
-                    
-                    tips_str = " | ".join(tips_list) if tips_list else "⚠️ S/ Padrão"
-                    
-                    lista_visual.append({
-                        "Liga": row.get('League','-'), "Jogo": f"{h} x {a}",
-                        "Tip Visual": tips_str, "IA (2.5)": p_ia, "1.5 FT": p_15ft,
-                        "0.5 HT": p_05ht, "BTTS": p_btts, "Cantos": avg_corners, "Score": p_ia
-                    })
-                    dados_para_envio[f"{h} x {a}"] = {
-                        "League": row.get('League','-'), "Time": row.get('Time','--:--'), "Home": h, "Away": a, "Tips": tips_list,
-                        "Prob_IA": p_ia, "Prob_15FT": p_15ft, "Prob_05HT": p_05ht, "Prob_BTTS": p_btts, "Avg_Corners": avg_corners,
-                        "Prob_H": wh, "Prob_D": wd, "Prob_A": wa,
-                        "Odd_Real_H": row.get('odds_ft_1', 0), "Odd_Real_D": row.get('odds_ft_x', 0), "Odd_Real_A": row.get('odds_ft_2', 0),
-                        "Odd_Real_15FT": row.get('odds_ft_over15', 0), "Odd_Real_25FT": row.get('odds_ft_over25', 0),
-                        "Odd_Real_BTTS": row.get('odds_btts_yes', 0), "Odd_Real_HT": row.get('odds_1st_half_over05', 0)
-                    }
-
-            df_show = pd.DataFrame(lista_visual).sort_values('Score', ascending=False)
-            st.dataframe(df_show, column_config={
-                "Tip Visual": st.column_config.TextColumn("Destaques"),
-                "IA (2.5)": st.column_config.ProgressColumn("Over 2.5 (IA)", format="%.1f%%", min_value=0, max_value=100),
-                "1.5 FT": st.column_config.ProgressColumn("Over 1.5", format="%.1f%%", min_value=0, max_value=100),
-                "0.5 HT": st.column_config.ProgressColumn("Over 0.5 HT", format="%.1f%%", min_value=0, max_value=100),
-                "BTTS": st.column_config.ProgressColumn("Ambas Marcam", format="%.1f%%", min_value=0, max_value=100),
-                "Cantos": st.column_config.NumberColumn("Cantos (Média)", format="%.1f"),
-            }, use_container_width=True, hide_index=True)
+            jogos_hoje = [f"{row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
+            jogo_selecionado = st.selectbox("👉 Selecione um jogo para ver a MATRIZ DE POISSON:", jogos_hoje, index=0)
             
-            st.divider()
-            st.markdown("### 📡 Disparar Alerta (Manual)")
-            col_sel, col_btn = st.columns([3, 1])
-            with col_sel:
-                jogos_disp = list(dados_para_envio.keys())
-                jogo_alvo = st.selectbox("Selecione o jogo para enviar:", jogos_disp)
-            with col_btn:
-                st.write(""); st.write("")
-                if st.button("🚀 Enviar para Telegram"):
-                    if jogo_alvo in dados_para_envio:
-                        d = dados_para_envio[jogo_alvo]
-                        destaque_str = " | ".join(d['Tips']) if d['Tips'] else "Análise Manual"
-                        header = "⚽ ANÁLISE PRÉ-JOGO (MANUAL)"
-                        if d['Prob_A'] >= 50 and d['Prob_H'] <= 40: header = "🦓 ALERTA DE ZEBRA"
-                        elif d['Prob_H'] >= 80: header = "🔥 SUPER FAVORITO (CASA)"
-                        
-                        def show_odd(real, fair_prob):
-                            fair_odd = get_odd_justa(fair_prob)
-                            if real > 1.0: return f"@{real:.2f}"
-                            return f"Justa @{fair_odd:.2f}"
+            # Encontrar dados do jogo selecionado
+            times = jogo_selecionado.split(" x ")
+            home_sel, away_sel = times[0], times[1]
+            row_sel = df_today[(df_today['HomeTeam'] == home_sel) & (df_today['AwayTeam'] == away_sel)].iloc[0]
+            liga_sel = row_sel.get('League', '')
+            
+            # Tentar encontrar a liga no histórico (pode ter nome levemente diferente, faremos busca simples)
+            try:
+                liga_match = df_recent[df_recent['HomeTeam'] == home_sel]['League_Custom'].mode()[0]
+            except:
+                liga_match = None
+            
+            if liga_match:
+                # CÁLCULO PODERADO V40
+                xg_h, xg_a, str_h, str_a = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel)
+                
+                if xg_h is not None:
+                    st.divider()
+                    st.markdown(f"### 📊 Raio-X: {home_sel} vs {away_sel}")
+                    
+                    # Exibir Forças e xG
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("⚔️ Força Ataque Casa", f"{str_h:.2f}")
+                    c2.metric("🛡️ Força Defesa Visitante", f"{str_a:.2f}") # (Conceitual, aqui é força relativa)
+                    c3.metric("⚽ xG Esperado (Casa)", f"{xg_h:.2f}", delta="Gols previstos")
+                    c4.metric("⚽ xG Esperado (Fora)", f"{xg_a:.2f}", delta="Gols previstos")
+                    
+                    # MATRIZ DE POISSON
+                    matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
+                    
+                    st.subheader("🎲 Matriz de Probabilidades (Placar Exato)")
+                    
+                    # Criar Heatmap com Plotly
+                    z_data = matriz
+                    x_labels = ['0', '1', '2', '3', '4', '5+'] # Gols Visitante
+                    y_labels = ['0', '1', '2', '3', '4', '5+'] # Gols Casa
+                    
+                    fig = px.imshow(z_data,
+                                    labels=dict(x="Gols Visitante", y="Gols Mandante", color="Probabilidade (%)"),
+                                    x=x_labels,
+                                    y=y_labels,
+                                    text_auto='.1f',
+                                    color_continuous_scale='Viridis') # Escala de cor profissional
+                    fig.update_layout(width=600, height=500)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # Probabilidades Consolidadas
+                    st.subheader("📈 Probabilidades Reais (Baseadas na Matriz)")
+                    k1, k2, k3 = st.columns(3)
+                    k1.metric("Vitória Casa", f"{probs['HomeWin']*100:.1f}%", f"Odd Justa: @{get_odd_justa(probs['HomeWin']*100):.2f}")
+                    k2.metric("Empate", f"{probs['Draw']*100:.1f}%", f"Odd Justa: @{get_odd_justa(probs['Draw']*100):.2f}")
+                    k3.metric("Vitória Visitante", f"{probs['AwayWin']*100:.1f}%", f"Odd Justa: @{get_odd_justa(probs['AwayWin']*100):.2f}")
+                    
+                    k4, k5, k6 = st.columns(3)
+                    k4.metric("Over 2.5 Gols", f"{probs['Over25']*100:.1f}%", f"Odd Justa: @{get_odd_justa(probs['Over25']*100):.2f}")
+                    k5.metric("Ambas Marcam (BTTS)", f"{probs['BTTS']*100:.1f}%", f"Odd Justa: @{get_odd_justa(probs['BTTS']*100):.2f}")
+                    k6.metric("Placar Mais Provável", "Ver Matriz 👆")
 
-                        txt = f"{header}\n"
-                        txt += f"🏆 *{d['League'].upper()}*\n\n"
-                        txt += f"⚔️ *{d['Home']}* vs *{d['Away']}*\n"
-                        txt += f"⏰ {d['Time']}\n\n"
-                        txt += f"🎯 *Destaque:* {destaque_str}\n\n"
-                        txt += f"📊 *PROBABILIDADES (1x2):*\n"
-                        txt += f"🏠 Casa: {show_odd(d['Odd_Real_H'], d['Prob_H'])} ({d['Prob_H']:.0f}%)\n"
-                        txt += f"⚖️ Empate: {show_odd(d['Odd_Real_D'], d['Prob_D'])} ({d['Prob_D']:.0f}%)\n"
-                        txt += f"✈️ Visitante: {show_odd(d['Odd_Real_A'], d['Prob_A'])} ({d['Prob_A']:.0f}%)\n\n"
-                        txt += f"⚽ *MERCADOS DE GOLS:*\n"
-                        txt += f"⚡ 0.5 HT: {show_odd(d['Odd_Real_HT'], d['Prob_05HT'])} ({d['Prob_05HT']:.0f}%)\n"
-                        txt += f"🛡️ 1.5 FT: {show_odd(d['Odd_Real_15FT'], d['Prob_15FT'])} ({d['Prob_15FT']:.0f}%)\n"
-                        txt += f"🔥 2.5 FT: {show_odd(d['Odd_Real_25FT'], d['Prob_IA'])} (IA: {d['Prob_IA']:.0f}%)\n"
-                        txt += f"🤝 Ambas: {show_odd(d['Odd_Real_BTTS'], d['Prob_BTTS'])} ({d['Prob_BTTS']:.0f}%)\n"
-                        if d['Avg_Corners'] >= 8.0: txt += f"\n🚩 *CANTOS:* Avg {d['Avg_Corners']:.1f}\n"
-                        txt += "--------------------------------\n⚠️ Aposte com Responsabilidade\n🤖 *Mestre dos Greens (Painel)*"
-                        
-                        if enviar_telegram(txt): st.success(f"Alerta de {d['Home']} x {d['Away']} enviado!")
-                        else: st.error("Erro ao enviar.")
-        else: st.warning("Aguardando dados da grade...")
+                else:
+                    st.warning("Dados históricos insuficientes para calcular xG Ponderado deste confronto.")
+            else:
+                st.warning(f"Não foi possível encontrar o histórico da liga para esses times. Verifique se a liga '{row_sel['League']}' está mapeada.")
+        else:
+            st.info("Aguardando jogos do dia...")
 
     # ==============================================================================
-    # 2. SIMULADOR MANUAL (H2H)
+    # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual (H2H)":
-        st.header("⚔️ Simulador Manual de Confrontos")
-        st.markdown("Selecione dois times manualmente para gerar uma previsão completa (Winner, Gols, Cantos).")
-        
+        st.header("⚔️ Simulador Manual V40 (Poisson)")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         
-        c1, c2 = st.columns(2)
-        with c1:
-            team_a = st.selectbox("🏠 Time da Casa (Mandante):", all_teams, index=None, placeholder="Escolha o mandante...")
-        with c2:
-            team_b = st.selectbox("✈️ Time Visitante:", all_teams, index=None, placeholder="Escolha o visitante...")
-            
-        if team_a and team_b:
-            if team_a == team_b:
-                st.error("Escolha times diferentes!")
-            else:
-                sh = df_recent[df_recent['HomeTeam'] == team_a]
-                if len(sh) < 5: sh = df_recent[(df_recent['HomeTeam']==team_a)|(df_recent['AwayTeam']==team_a)]
-                sa = df_recent[df_recent['AwayTeam'] == team_b]
-                if len(sa) < 5: sa = df_recent[(df_recent['HomeTeam']==team_b)|(df_recent['AwayTeam']==team_b)]
+        c1, c2, c3 = st.columns(3)
+        team_a = c1.selectbox("Casa:", all_teams, index=None)
+        team_b = c2.selectbox("Visitante:", all_teams, index=None)
+        # Liga é necessária para a média. Tentar inferir.
+        if team_a:
+            try: liga_sim = df_recent[df_recent['HomeTeam'] == team_a]['League_Custom'].mode()[0]
+            except: liga_sim = None
+        
+        if team_a and team_b and liga_sim:
+            xg_h, xg_a, str_h, str_a = calcular_xg_ponderado(df_recent, liga_sim, team_a, team_b)
+            if xg_h:
+                st.success(f"Simulação baseada na liga: {liga_sim}")
+                matriz, probs = gerar_matriz_poisson(xg_h, xg_a)
                 
-                if len(sh) > 0 and len(sa) > 0:
-                    p_ia = model.predict_proba([[team_stats.get(team_a,0), team_stats.get(team_b,0)]])[0][1]*100 if model and team_a in team_stats and team_b in team_stats else 50.0
-                    avg_gols_a = (sh['FTHG'] + sh['FTAG']).mean()
-                    avg_gols_b = (sa['FTHG'] + sa['FTAG']).mean()
-                    prob_btts = (sh['BTTS'].mean() + sa['BTTS'].mean()) / 2 * 100
-                    avg_cantos = (sh['HC'].mean() + sa['AC'].mean())
-                    prob_05ht = (sh['Over05HT'].mean() + sa['Over05HT'].mean()) / 2 * 100
-                    prob_15ft = (sh['Over15FT'].mean() + sa['Over15FT'].mean()) / 2 * 100
-                    prob_home_win = sh['HomeWin'].mean() * 100
-                    prob_away_win = sa['AwayWin'].mean() * 100
-                    
-                    status_jogo = "⚖️ Jogo Equilibrado"
-                    if prob_home_win >= 80: status_jogo = f"🔥 SUPER FAVORITO: {team_a}"
-                    elif prob_away_win >= 80: status_jogo = f"🔥 SUPER FAVORITO: {team_b}"
-                    elif prob_home_win >= 50: status_jogo = f"✅ Favorito: {team_a}"
-                    elif prob_away_win >= 50: status_jogo = f"✅ Favorito: {team_b}"
-                    
-                    st.divider()
-                    st.subheader(status_jogo)
-                    
-                    k1, k2, k3 = st.columns(3)
-                    k1.metric("🤖 Prob. Over 2.5 (IA)", f"{p_ia:.1f}%")
-                    k2.metric("🛡️ Prob. Over 1.5 FT", f"{prob_15ft:.1f}%")
-                    k3.metric("⚡ Prob. Over 0.5 HT", f"{prob_05ht:.1f}%")
-                    
-                    k4, k5, k6, k7 = st.columns(4)
-                    k4.metric("🏠 Vitória Casa", f"{prob_home_win:.0f}%")
-                    k5.metric("✈️ Vitória Visitante", f"{prob_away_win:.0f}%")
-                    k6.metric("🤝 Prob. BTTS", f"{prob_btts:.1f}%")
-                    k7.metric("🚩 Média Cantos", f"{avg_cantos:.1f}")
-                    
-                    st.divider()
-                    st.subheader("📊 Comparativo Direto")
-                    comp_data = pd.DataFrame({
-                        'Métrica': ['Média Gols (Total)', 'Gols Feitos', 'Gols Sofridos', 'Win Rate (%)'],
-                        team_a: [avg_gols_a, sh['FTHG'].mean() if 'HomeTeam' in sh.columns else sh['FTHG'].mean(), sh['FTAG'].mean() if 'HomeTeam' in sh.columns else sh['FTAG'].mean(), (sh['HomeWin'].mean() if 'HomeWin' in sh.columns else 0) * 100],
-                        team_b: [avg_gols_b, sa['FTAG'].mean() if 'AwayTeam' in sa.columns else sa['FTHG'].mean(), sa['FTHG'].mean() if 'AwayTeam' in sa.columns else sa['FTAG'].mean(), (sa['AwayWin'].mean() if 'AwayWin' in sa.columns else 0) * 100]
-                    })
-                    st.dataframe(comp_data, use_container_width=True, hide_index=True)
-                    
-                    categories = ['Ataque', 'Defesa', 'Cantos', 'Intensidade (Gols)']
-                    fig = go.Figure()
-                    fig.add_trace(go.Scatterpolar(r=[sh['FTHG'].mean()*2, 5-sh['FTAG'].mean(), sh['HC'].mean()/2, avg_gols_a], theta=categories, fill='toself', name=team_a, line_color='#00ff00'))
-                    fig.add_trace(go.Scatterpolar(r=[sa['FTAG'].mean()*2, 5-sa['FTHG'].mean(), sa['AC'].mean()/2, avg_gols_b], theta=categories, fill='toself', name=team_b, line_color='#ff0000'))
-                    fig.update_layout(polar=dict(radialaxis=dict(visible=True)), showlegend=True, height=400)
-                    st.plotly_chart(fig, use_container_width=True)
-                else: st.warning("Dados insuficientes para gerar simulação precisa.")
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    st.metric("xG Casa", f"{xg_h:.2f}")
+                    st.metric("Vitória Casa %", f"{probs['HomeWin']*100:.1f}%")
+                with col_res2:
+                    st.metric("xG Visitante", f"{xg_a:.2f}")
+                    st.metric("Over 2.5 %", f"{probs['Over25']*100:.1f}%")
+                
+                # Plot rápido
+                z_data = matriz
+                fig = px.imshow(z_data, x=['0','1','2','3','4','5+'], y=['0','1','2','3','4','5+'], text_auto='.1f', color_continuous_scale='Magma')
+                st.plotly_chart(fig, use_container_width=True)
 
     # ==============================================================================
     # 3. ANALISADOR DE TIMES
     # ==============================================================================
     elif menu == "🔎 Analisador de Times":
-        st.header("🔎 Scout Profundo de Equipes")
-        all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
-        sel_time = st.selectbox("Pesquise o Time:", all_teams, index=None, placeholder="Digite para filtrar...")
-        if sel_time:
-            df_home = df_recent[df_recent['HomeTeam'] == sel_time]
-            df_away = df_recent[df_recent['AwayTeam'] == sel_time]
-            df_all = pd.concat([df_home, df_away]).sort_values('Date', ascending=False)
-            if not df_all.empty:
-                st.markdown(f"### 📊 Raio-X: {sel_time}")
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    st.markdown("##### 🌍 Geral")
-                    st.metric("Jogos (2023+)", len(df_all))
-                    st.metric("Média Gols", f"{(df_all['FTHG'] + df_all['FTAG']).mean():.2f}")
-                    st.metric("BTTS %", f"{((df_all['FTHG']>0) & (df_all['FTAG']>0)).mean() * 100:.1f}%")
-                with c2:
-                    st.markdown("##### 🏠 Em Casa")
-                    if not df_home.empty:
-                        st.write(f"⚽ Pró: {df_home['FTHG'].mean():.2f}")
-                        st.write(f"🛡️ Sofridos: {df_home['FTAG'].mean():.2f}")
-                        st.write(f"🚩 Cantos: {df_home['HC'].mean():.1f}")
-                    else: st.info("-")
-                with c3:
-                    st.markdown("##### ✈️ Fora de Casa")
-                    if not df_away.empty:
-                        st.write(f"⚽ Pró: {df_away['FTAG'].mean():.2f}")
-                        st.write(f"🛡️ Sofridos: {df_away['FTHG'].mean():.2f}")
-                        st.write(f"🚩 Cantos: {df_away['AC'].mean():.1f}")
-                    else: st.info("-")
-                st.divider()
-                st.subheader("📈 Comparativo: Casa x Fora")
-                data_chart = pd.DataFrame({
-                    'Situação': ['Casa', 'Casa', 'Fora', 'Fora'],
-                    'Tipo': ['Gols Feitos', 'Gols Sofridos', 'Gols Feitos', 'Gols Sofridos'],
-                    'Média': [df_home['FTHG'].mean() if not df_home.empty else 0, df_home['FTAG'].mean() if not df_home.empty else 0,
-                              df_away['FTAG'].mean() if not df_away.empty else 0, df_away['FTHG'].mean() if not df_away.empty else 0]
-                })
-                fig = px.bar(data_chart, x='Situação', y='Média', color='Tipo', barmode='group', height=300, color_discrete_sequence=['#00ff00', '#ff4444'])
-                st.plotly_chart(fig, use_container_width=True)
-                st.subheader("📜 Últimas 10 Partidas")
-                st.dataframe(df_all[['Date', 'League_Custom', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam']].head(10), hide_index=True, use_container_width=True)
+        st.header("🔎 Scout de Equipes")
+        st.info("Use a Grade do Dia para ver a análise avançada V40.")
 
-    # ==============================================================================
-    # 4. RAIO-X LIGAS
-    # ==============================================================================
-    elif menu == "🌍 Raio-X Ligas":
-        st.header("🌎 Inteligência de Campeonatos")
-        stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
-            'Jogos': len(x),
-            'Média Gols': (x['FTHG']+x['FTAG']).mean(),
-            'Over 2.5 (%)': ((x['FTHG']+x['FTAG']) > 2.5).mean() * 100,
-            'BTTS (%)': ((x['FTHG']>0) & (x['FTAG']>0)).mean() * 100,
-            'Média Cantos': (x['HC']+x['AC']).mean()
-        })).reset_index()
-        ligas_disponiveis = sorted(stats_liga['League_Custom'].unique())
-        ligas_sel = st.multiselect("🔍 Filtrar Ligas:", ligas_disponiveis, placeholder="Selecione para comparar...")
-        if ligas_sel: stats_liga = stats_liga[stats_liga['League_Custom'].isin(ligas_sel)]
-        if not stats_liga.empty:
-            tab_g, tab_c = st.tabs(["⚽ Gols", "🚩 Cantos"])
-            with tab_g:
-                fig_gols = px.bar(stats_liga.sort_values('Média Gols', ascending=False), x='League_Custom', y='Média Gols', color='Over 2.5 (%)', title="Média de Gols (Cor = % Over 2.5)", color_continuous_scale='RdYlGn')
-                st.plotly_chart(fig_gols, use_container_width=True)
-            with tab_c:
-                fig_cantos = px.bar(stats_liga.sort_values('Média Cantos', ascending=False), x='League_Custom', y='Média Cantos', title="Média de Escanteios", color_discrete_sequence=['#00ccff'])
-                st.plotly_chart(fig_cantos, use_container_width=True)
-            st.dataframe(stats_liga.sort_values('Média Gols', ascending=False), column_config={
-                "League_Custom": st.column_config.TextColumn("Campeonato"),
-                "Média Gols": st.column_config.NumberColumn(format="%.2f ⚽"),
-                "Over 2.5 (%)": st.column_config.ProgressColumn("Over 2.5", format="%.1f%%", min_value=0, max_value=100),
-                "BTTS (%)": st.column_config.ProgressColumn("BTTS", format="%.1f%%", min_value=0, max_value=100),
-                "Média Cantos": st.column_config.NumberColumn(format="%.1f 🚩"),
-            }, hide_index=True, use_container_width=True)
-        else: st.info("Selecione as ligas acima para visualizar os dados.")
-
-else: st.info("Carregando Inteligência Global (2016-2025)...")
+else: st.info("Carregando bases de dados...")
