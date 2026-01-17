@@ -30,6 +30,8 @@ st.markdown("""
     div[data-testid="stMetricValue"] { font-size: 20px; color: #00ff00; }
     div[data-testid="stMetricLabel"] { font-size: 14px; }
     [data-testid="stSidebar"] > div:first-child { text-align: center; }
+    /* Botão de Refresh */
+    div.stButton > button { width: 100%; border-radius: 8px; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -53,7 +55,7 @@ def get_odd_justa(prob):
     return 100 / prob
 
 # ==============================================================================
-# 1. BANCO DE DADOS (HISTÓRICO + ATUAL)
+# 1. BANCO DE DADOS
 # ==============================================================================
 URLS_HISTORICAS = {
     "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
@@ -186,6 +188,12 @@ if not df_recent.empty:
     if logo:
         st.sidebar.image(logo, use_container_width=True)
         st.sidebar.markdown("---")
+    
+    # --- BOTÃO DE REFRESH (NOVO!) ---
+    if st.sidebar.button("🔄 Forçar Atualização"):
+        st.cache_data.clear()
+        st.rerun()
+    st.sidebar.markdown("---")
         
     st.sidebar.markdown("## 🧭 Navegação")
     menu = st.sidebar.radio("Selecione:", ["🎯 Grade & Oportunidades", "⚔️ Simulador Manual (H2H)", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
@@ -291,7 +299,7 @@ if not df_recent.empty:
         else: st.warning("Aguardando dados da grade...")
 
     # ==============================================================================
-    # 2. SIMULADOR MANUAL (H2H) - ATUALIZADO V35
+    # 2. SIMULADOR MANUAL (H2H)
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual (H2H)":
         st.header("⚔️ Simulador Manual de Confrontos")
@@ -309,49 +317,36 @@ if not df_recent.empty:
             if team_a == team_b:
                 st.error("Escolha times diferentes!")
             else:
-                # Lógica de Previsão
                 sh = df_recent[df_recent['HomeTeam'] == team_a]
                 if len(sh) < 5: sh = df_recent[(df_recent['HomeTeam']==team_a)|(df_recent['AwayTeam']==team_a)]
-                
                 sa = df_recent[df_recent['AwayTeam'] == team_b]
                 if len(sa) < 5: sa = df_recent[(df_recent['HomeTeam']==team_b)|(df_recent['AwayTeam']==team_b)]
                 
                 if len(sh) > 0 and len(sa) > 0:
-                    # IA Over 2.5
                     p_ia = model.predict_proba([[team_stats.get(team_a,0), team_stats.get(team_b,0)]])[0][1]*100 if model and team_a in team_stats and team_b in team_stats else 50.0
-                    
-                    # Médias de Gols e Cantos
                     avg_gols_a = (sh['FTHG'] + sh['FTAG']).mean()
                     avg_gols_b = (sa['FTHG'] + sa['FTAG']).mean()
                     prob_btts = (sh['BTTS'].mean() + sa['BTTS'].mean()) / 2 * 100
                     avg_cantos = (sh['HC'].mean() + sa['AC'].mean())
-                    
-                    # NOVAS MÉTRICAS (V35)
                     prob_05ht = (sh['Over05HT'].mean() + sa['Over05HT'].mean()) / 2 * 100
                     prob_15ft = (sh['Over15FT'].mean() + sa['Over15FT'].mean()) / 2 * 100
-                    
-                    # Probabilidade de Vitória (Simples baseada em histórico)
                     prob_home_win = sh['HomeWin'].mean() * 100
                     prob_away_win = sa['AwayWin'].mean() * 100
                     
-                    # Status de Favorito
                     status_jogo = "⚖️ Jogo Equilibrado"
                     if prob_home_win >= 80: status_jogo = f"🔥 SUPER FAVORITO: {team_a}"
                     elif prob_away_win >= 80: status_jogo = f"🔥 SUPER FAVORITO: {team_b}"
                     elif prob_home_win >= 50: status_jogo = f"✅ Favorito: {team_a}"
                     elif prob_away_win >= 50: status_jogo = f"✅ Favorito: {team_b}"
                     
-                    # Exibição Visual
                     st.divider()
                     st.subheader(status_jogo)
                     
-                    # Fileira 1: IA e Gols Seguros
                     k1, k2, k3 = st.columns(3)
                     k1.metric("🤖 Prob. Over 2.5 (IA)", f"{p_ia:.1f}%")
                     k2.metric("🛡️ Prob. Over 1.5 FT", f"{prob_15ft:.1f}%")
                     k3.metric("⚡ Prob. Over 0.5 HT", f"{prob_05ht:.1f}%")
                     
-                    # Fileira 2: Vencedor e BTTS
                     k4, k5, k6, k7 = st.columns(4)
                     k4.metric("🏠 Vitória Casa", f"{prob_home_win:.0f}%")
                     k5.metric("✈️ Vitória Visitante", f"{prob_away_win:.0f}%")
@@ -362,37 +357,18 @@ if not df_recent.empty:
                     st.subheader("📊 Comparativo Direto")
                     comp_data = pd.DataFrame({
                         'Métrica': ['Média Gols (Total)', 'Gols Feitos', 'Gols Sofridos', 'Win Rate (%)'],
-                        team_a: [
-                            avg_gols_a, 
-                            sh['FTHG'].mean() if 'HomeTeam' in sh.columns else sh['FTHG'].mean(), 
-                            sh['FTAG'].mean() if 'HomeTeam' in sh.columns else sh['FTAG'].mean(),
-                            (sh['HomeWin'].mean() if 'HomeWin' in sh.columns else 0) * 100
-                        ],
-                        team_b: [
-                            avg_gols_b, 
-                            sa['FTAG'].mean() if 'AwayTeam' in sa.columns else sa['FTHG'].mean(), 
-                            sa['FTHG'].mean() if 'AwayTeam' in sa.columns else sa['FTAG'].mean(),
-                            (sa['AwayWin'].mean() if 'AwayWin' in sa.columns else 0) * 100
-                        ]
+                        team_a: [avg_gols_a, sh['FTHG'].mean() if 'HomeTeam' in sh.columns else sh['FTHG'].mean(), sh['FTAG'].mean() if 'HomeTeam' in sh.columns else sh['FTAG'].mean(), (sh['HomeWin'].mean() if 'HomeWin' in sh.columns else 0) * 100],
+                        team_b: [avg_gols_b, sa['FTAG'].mean() if 'AwayTeam' in sa.columns else sa['FTHG'].mean(), sa['FTHG'].mean() if 'AwayTeam' in sa.columns else sa['FTAG'].mean(), (sa['AwayWin'].mean() if 'AwayWin' in sa.columns else 0) * 100]
                     })
                     st.dataframe(comp_data, use_container_width=True, hide_index=True)
                     
-                    # Gráfico Radar
                     categories = ['Ataque', 'Defesa', 'Cantos', 'Intensidade (Gols)']
                     fig = go.Figure()
-                    fig.add_trace(go.Scatterpolar(
-                        r=[sh['FTHG'].mean()*2, 5-sh['FTAG'].mean(), sh['HC'].mean()/2, avg_gols_a],
-                        theta=categories, fill='toself', name=team_a, line_color='#00ff00'
-                    ))
-                    fig.add_trace(go.Scatterpolar(
-                        r=[sa['FTAG'].mean()*2, 5-sa['FTHG'].mean(), sa['AC'].mean()/2, avg_gols_b],
-                        theta=categories, fill='toself', name=team_b, line_color='#ff0000'
-                    ))
+                    fig.add_trace(go.Scatterpolar(r=[sh['FTHG'].mean()*2, 5-sh['FTAG'].mean(), sh['HC'].mean()/2, avg_gols_a], theta=categories, fill='toself', name=team_a, line_color='#00ff00'))
+                    fig.add_trace(go.Scatterpolar(r=[sa['FTAG'].mean()*2, 5-sa['FTHG'].mean(), sa['AC'].mean()/2, avg_gols_b], theta=categories, fill='toself', name=team_b, line_color='#ff0000'))
                     fig.update_layout(polar=dict(radialaxis=dict(visible=True)), showlegend=True, height=400)
                     st.plotly_chart(fig, use_container_width=True)
-
-                else:
-                    st.warning("Dados insuficientes para gerar simulação precisa.")
+                else: st.warning("Dados insuficientes para gerar simulação precisa.")
 
     # ==============================================================================
     # 3. ANALISADOR DE TIMES
