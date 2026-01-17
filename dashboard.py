@@ -9,7 +9,7 @@ from PIL import Image
 
 # --- CARREGA A LOGO ---
 try:
-    logo = Image.open("logo.jpg") 
+    logo = Image.open("logo.jpg.jpg") 
     icon_page = logo
 except:
     logo = None
