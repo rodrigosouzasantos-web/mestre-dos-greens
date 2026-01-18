@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V55",
+    page_title="Mestre dos Greens PRO - V56 (Bilhetes)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -61,6 +61,18 @@ st.markdown("""
     .placar-score { font-size: 16px; font-weight: bold; color: #fff; }
     .placar-prob { font-size: 14px; color: #f1c40f; font-weight: bold; }
     .placar-odd { font-size: 12px; color: #cfcfcf; }
+    
+    /* Estilo do Bilhete */
+    .ticket-card {
+        background-color: #1c232b;
+        border: 2px solid #f1c40f;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .ticket-header { color: #f1c40f; font-size: 22px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
+    .ticket-item { font-size: 16px; color: #e6edf3; margin-bottom: 8px; border-left: 3px solid #2ea043; padding-left: 10px; }
+    .ticket-total { font-size: 18px; color: #2ea043; font-weight: bold; margin-top: 15px; text-align: right; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -155,7 +167,6 @@ URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet
 @st.cache_data(ttl=3600)
 def load_data():
     all_dfs = []
-    # Mescla as duas listas
     TODAS_URLS = list(URLS_HISTORICAS.items()) + list(URLS_ATUAIS.items())
     progress_text = f"Carregando {len(TODAS_URLS)} fontes de dados..."
     my_bar = st.progress(0, text=progress_text)
@@ -169,7 +180,6 @@ def load_data():
             
             df.columns = [c.strip().lower() for c in df.columns]
             
-            # Mapeamento
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 
                 'home_score': 'fthg', 'away_score': 'ftag',
@@ -181,7 +191,6 @@ def load_data():
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
-            # Garante colunas numéricas
             cols_num = ['fthg','ftag','HTHG','HTAG','HC','AC']
             for c in cols_num: 
                 if c not in df.columns: df[c] = 0
@@ -189,7 +198,6 @@ def load_data():
             
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
             
-            # Métricas
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
@@ -209,7 +217,6 @@ def load_data():
     full_df['Date'] = pd.to_datetime(full_df['Date'], dayfirst=True, errors='coerce')
     full_df.drop_duplicates(subset=['Date', 'HomeTeam', 'AwayTeam'], keep='last', inplace=True)
     
-    # Filtro temporal
     df_recent = full_df[full_df['Date'].dt.year >= 2023].copy()
     
     try:
@@ -296,26 +303,15 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict, top_scores
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    # EIXOS V55: CATEGÓRICOS + INVERTIDO (0 no Topo)
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
     fig = go.Figure(data=go.Heatmap(z=matriz, x=x_labels, y=y_labels, text=matriz, texttemplate="<b>%{z:.1f}%</b>", textfont={"size":16, "color":"white"}, colorscale=colorscale, showscale=False))
-    
-    # AUTORANGE='REVERSED' no Eixo Y para colocar 0 no Topo e 5+ Embaixo
-    fig.update_layout(
-        title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)), 
-        xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), 
-        yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category', autorange='reversed'), # FIX REVERSED
-        annotations=[dict(x=0.5, y=-0.15, xref='paper', yref='paper', text=f"<b>{away_name}</b> (Visitante)", showarrow=False, font=dict(size=18, color='#fff'))], 
-        paper_bgcolor='rgba(0,0,0,0)', 
-        plot_bgcolor='rgba(0,0,0,0)', 
-        height=500, margin=dict(t=80, l=80, r=20, b=60)
-    )
+    fig.update_layout(title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)), xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category', autorange='reversed'), annotations=[dict(x=0.5, y=-0.15, xref='paper', yref='paper', text=f"<b>{away_name}</b> (Visitante)", showarrow=False, font=dict(size=18, color='#fff'))], paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=500, margin=dict(t=80, l=80, r=20, b=60))
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V55")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V56")
 
 df_recent, df_today, full_df = load_data()
 
@@ -330,7 +326,7 @@ if not df_recent.empty:
     st.sidebar.markdown("---")
         
     st.sidebar.markdown("## 🧭 Navegação")
-    menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia", "⚔️ Simulador Manual", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
+    menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia", "⚔️ Simulador Manual", "🎫 Bilhetes Prontos", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
     # 1. GRADE DO DIA
     if menu == "🎯 Grade do Dia":
@@ -433,7 +429,105 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. ANALISADOR DE TIMES
+    # 3. BILHETES PRONTOS
+    elif menu == "🎫 Bilhetes Prontos":
+        st.header("🎫 Bilhetes Prontos (Segurança de Green)")
+        if df_today.empty:
+            st.info("Nenhum jogo disponível hoje para gerar bilhetes.")
+        else:
+            if st.button("🔄 Gerar Novos Bilhetes"):
+                with st.spinner("Analisando todos os jogos e calculando probabilidades..."):
+                    # 1. Escanear todos os jogos
+                    all_bets = []
+                    for i, row in df_today.iterrows():
+                        home = row['HomeTeam']
+                        away = row['AwayTeam']
+                        try:
+                            league = df_recent[df_recent['HomeTeam'] == home]['League_Custom'].mode()[0]
+                            xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
+                            if xg_h is None: continue
+                            
+                            _, probs_dict, _ = gerar_matriz_poisson(xg_h, xg_a)
+                            
+                            # Probabilidades de Segurança (>75% ou >80%)
+                            # Over 1.5
+                            if probs_dict['Over15'] > 0.75:
+                                all_bets.append({
+                                    'Jogo': f"{home} x {away}",
+                                    'Tipo': 'Over 1.5 Gols',
+                                    'Prob': probs_dict['Over15'],
+                                    'Odd_Est': 1/probs_dict['Over15']
+                                })
+                            
+                            # Under 3.5
+                            if probs_dict['Under35'] > 0.80:
+                                all_bets.append({
+                                    'Jogo': f"{home} x {away}",
+                                    'Tipo': 'Under 3.5 Gols',
+                                    'Prob': probs_dict['Under35'],
+                                    'Odd_Est': 1/probs_dict['Under35']
+                                })
+                                
+                            # Casa ou Empate (1X)
+                            prob_1x = probs_dict['HomeWin'] + probs_dict['Draw']
+                            if prob_1x > 0.80:
+                                all_bets.append({
+                                    'Jogo': f"{home} x {away}",
+                                    'Tipo': 'Casa ou Empate (1X)',
+                                    'Prob': prob_1x,
+                                    'Odd_Est': 1/prob_1x
+                                })
+                                
+                            # Fora ou Empate (X2)
+                            prob_x2 = probs_dict['AwayWin'] + probs_dict['Draw']
+                            if prob_x2 > 0.80:
+                                all_bets.append({
+                                    'Jogo': f"{home} x {away}",
+                                    'Tipo': 'Fora ou Empate (X2)',
+                                    'Prob': prob_x2,
+                                    'Odd_Est': 1/prob_x2
+                                })
+                                
+                        except: continue
+                    
+                    # 2. Ordenar as melhores
+                    best_bets = sorted(all_bets, key=lambda x: x['Prob'], reverse=True)
+                    
+                    # 3. Montar Bilhetes
+                    if len(best_bets) >= 2:
+                        # Dupla
+                        dupla = best_bets[:2]
+                        odd_total_dupla = dupla[0]['Odd_Est'] * dupla[1]['Odd_Est']
+                        
+                        st.markdown(f"""
+                        <div class="ticket-card">
+                            <div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total_dupla:.2f})</div>
+                            <div class="ticket-item">⚽ {dupla[0]['Jogo']} <br> 🎯 {dupla[0]['Tipo']} (@{dupla[0]['Odd_Est']:.2f})</div>
+                            <div class="ticket-item">⚽ {dupla[1]['Jogo']} <br> 🎯 {dupla[1]['Tipo']} (@{dupla[1]['Odd_Est']:.2f})</div>
+                            <div class="ticket-total">Probabilidade Combinada: {(dupla[0]['Prob']*dupla[1]['Prob']*100):.1f}%</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    if len(best_bets) >= 3:
+                        # Tripla
+                        tripla = best_bets[2:5] # Pega as próximas 3 para variar
+                        if len(tripla) < 3: tripla = best_bets[:3] # Fallback
+                        
+                        odd_total_tripla = tripla[0]['Odd_Est'] * tripla[1]['Odd_Est'] * tripla[2]['Odd_Est']
+                        
+                        st.markdown(f"""
+                        <div class="ticket-card">
+                            <div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total_tripla:.2f})</div>
+                            <div class="ticket-item">⚽ {tripla[0]['Jogo']} <br> 🎯 {tripla[0]['Tipo']} (@{tripla[0]['Odd_Est']:.2f})</div>
+                            <div class="ticket-item">⚽ {tripla[1]['Jogo']} <br> 🎯 {tripla[1]['Tipo']} (@{tripla[1]['Odd_Est']:.2f})</div>
+                            <div class="ticket-item">⚽ {tripla[2]['Jogo']} <br> 🎯 {tripla[2]['Tipo']} (@{tripla[2]['Odd_Est']:.2f})</div>
+                            <div class="ticket-total">Probabilidade Combinada: {(tripla[0]['Prob']*tripla[1]['Prob']*tripla[2]['Prob']*100):.1f}%</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            else:
+                st.info("Clique no botão acima para escanear o mercado.")
+
+    # 4. ANALISADOR DE TIMES
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -455,18 +549,16 @@ if not df_recent.empty:
                 col_g2.plotly_chart(fig_res, use_container_width=True)
                 st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
-    # 4. RAIO-X LIGAS (CORRIGIDO VISUAL E DADOS)
+    # 5. RAIO-X LIGAS
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência Temporal de Ligas (Ano a Ano)")
         all_leagues = sorted(df_recent['League_Custom'].unique())
         options = ["Todas as Ligas"] + all_leagues
         selected_leagues = st.multiselect("Selecione:", options, default=[])
-        
         if not selected_leagues or "Todas as Ligas" in selected_leagues:
             df_filtered = df_recent
         else:
             df_filtered = df_recent[df_recent['League_Custom'].isin(selected_leagues)]
-            
         df_filtered['Year'] = df_filtered['Date'].dt.year
         
         stats_ano = df_filtered.groupby(['League_Custom', 'Year']).apply(lambda x: pd.Series({
@@ -478,16 +570,12 @@ if not df_recent.empty:
             'Cantos (Média)': (x['HC'] + x['AC']).mean()
         })).reset_index()
         
-        # Garante que o Ano seja exibido como String limpa na tabela
         stats_ano_display = stats_ano.copy()
         stats_ano_display['Year'] = stats_ano_display['Year'].astype(str)
         stats_ano_display = stats_ano_display.round(2)
-        
         st.subheader("📊 Tabela Detalhada (Ano a Ano)")
         st.dataframe(stats_ano_display, use_container_width=True)
-        
         st.subheader("📈 Tendência de Gols (Evolução)")
-        # Correção do Gráfico: Eixo X como Categoria
         fig_evol = px.line(stats_ano, x='Year', y='Gols (Média)', color='League_Custom', markers=True)
         fig_evol.update_layout(xaxis=dict(type='category'))
         st.plotly_chart(fig_evol, use_container_width=True)
