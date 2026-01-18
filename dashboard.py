@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V57 (Bilhetes)",
+    page_title="Mestre dos Greens PRO - V58 (Scout)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -180,6 +180,7 @@ def load_data():
             except: df = pd.read_csv(io.StringIO(r.content.decode('latin-1')), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
+            
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 
                 'home_score': 'fthg', 'away_score': 'ftag',
@@ -311,7 +312,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V57")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V58")
 
 df_recent, df_today, full_df = load_data()
 
@@ -437,9 +438,7 @@ if not df_recent.empty:
         else:
             if st.button("🔄 Gerar Novos Bilhetes"):
                 with st.spinner("Analisando todos os jogos e calculando probabilidades..."):
-                    all_candidates = [] # Lista de todas as apostas boas
-                    
-                    # 1. Escanear todos os jogos
+                    all_candidates = [] 
                     for i, row in df_today.iterrows():
                         home = row['HomeTeam']
                         away = row['AwayTeam']
@@ -447,92 +446,126 @@ if not df_recent.empty:
                             league = df_recent[df_recent['HomeTeam'] == home]['League_Custom'].mode()[0]
                             xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
                             if xg_h is None: continue
-                            
                             _, probs_dict, _ = gerar_matriz_poisson(xg_h, xg_a)
                             
-                            # Filtro de Segurança (>75% de probabilidade) -> Odd teórica < 1.33
-                            # Coleta todos os mercados possíveis
-                            
-                            # Over 1.5
+                            # Filtro de Segurança (>75% de probabilidade)
                             if probs_dict['Over15'] > 0.75:
                                 all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Over 1.5 Gols', 'Odd_Est': 1/probs_dict['Over15']})
-                            
-                            # Under 3.5 (Segurança)
                             if probs_dict['Under35'] > 0.80:
                                 all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 3.5 Gols', 'Odd_Est': 1/probs_dict['Under35']})
-                                
-                            # Under 4.5 (Super Segurança)
-                            if probs_dict['Under35'] > 0.90: # Usando under3.5 alto como proxy
-                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 4.5 Gols', 'Odd_Est': 1.08}) # Estimativa conservadora
-                                
-                            # Casa ou Empate
+                            if probs_dict['Under35'] > 0.90: 
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 4.5 Gols', 'Odd_Est': 1.08})
                             prob_1x = probs_dict['HomeWin'] + probs_dict['Draw']
                             if prob_1x > 0.80:
                                 all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Casa ou Empate (1X)', 'Odd_Est': 1/prob_1x})
-                                
-                            # Fora ou Empate
                             prob_x2 = probs_dict['AwayWin'] + probs_dict['Draw']
                             if prob_x2 > 0.80:
                                 all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Fora ou Empate (X2)', 'Odd_Est': 1/prob_x2})
-                                
                         except: continue
                     
-                    # 2. Montar DUPLA (Alvo: 1.50) -> Busca entre 1.45 e 1.60
+                    # 2. Montar DUPLA (Alvo: 1.50)
                     found_dupla = False
                     for pair in itertools.combinations(all_candidates, 2):
                         odd_total = pair[0]['Odd_Est'] * pair[1]['Odd_Est']
                         if 1.45 <= odd_total <= 1.60:
-                            st.markdown(f"""
-                            <div class="ticket-card">
-                                <div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total:.2f})</div>
-                                <div class="ticket-item">⚽ {pair[0]['Jogo']} <br> 🎯 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})</div>
-                                <div class="ticket-item">⚽ {pair[1]['Jogo']} <br> 🎯 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {pair[0]['Jogo']} <br> 🎯 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {pair[1]['Jogo']} <br> 🎯 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
                             found_dupla = True
-                            break # Mostra só 1 para não poluir
-                            
+                            break 
                     if not found_dupla: st.warning("Nenhuma combinação perfeita para Dupla (@1.50) encontrada hoje.")
 
-                    # 3. Montar TRIPLA (Alvo: 1.70) -> Busca entre 1.65 e 1.85
+                    # 3. Montar TRIPLA (Alvo: 1.70)
                     found_tripla = False
                     for trio in itertools.combinations(all_candidates, 3):
                         odd_total = trio[0]['Odd_Est'] * trio[1]['Odd_Est'] * trio[2]['Odd_Est']
                         if 1.65 <= odd_total <= 1.85:
-                            st.markdown(f"""
-                            <div class="ticket-card">
-                                <div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total:.2f})</div>
-                                <div class="ticket-item">⚽ {trio[0]['Jogo']} <br> 🎯 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})</div>
-                                <div class="ticket-item">⚽ {trio[1]['Jogo']} <br> 🎯 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})</div>
-                                <div class="ticket-item">⚽ {trio[2]['Jogo']} <br> 🎯 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})</div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {trio[0]['Jogo']} <br> 🎯 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[1]['Jogo']} <br> 🎯 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[2]['Jogo']} <br> 🎯 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
                             found_tripla = True
                             break
-                            
                     if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
-                    
-    # 4. ANALISADOR DE TIMES
+
+    # 4. ANALISADOR DE TIMES (REFORMULADO)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
+        
         if sel_time:
-            df_t_home = df_recent[df_recent['HomeTeam'] == sel_time]
-            df_t_away = df_recent[df_recent['AwayTeam'] == sel_time]
-            df_t_all = pd.concat([df_t_home, df_t_away]).sort_values('Date', ascending=False)
-            if not df_t_all.empty:
-                st.markdown(f"### 📊 Estatísticas: {sel_time}")
-                goals_data = pd.DataFrame({"Tipo": ["Gols Pró (Casa)", "Sofridos (Casa)", "Gols Pró (Fora)", "Sofridos (Fora)"], "Média": [df_t_home['FTHG'].mean() if not df_t_home.empty else 0, df_t_home['FTAG'].mean() if not df_t_home.empty else 0, df_t_away['FTAG'].mean() if not df_t_away.empty else 0, df_t_away['FTHG'].mean() if not df_t_away.empty else 0]})
-                fig_goals = px.bar(goals_data, x="Tipo", y="Média", color="Tipo", title="Média de Gols (Casa vs Fora)")
-                wins = df_t_all[(df_t_all['HomeTeam']==sel_time) & (df_t_all['HomeWin']==1)].shape[0] + df_t_all[(df_t_all['AwayTeam']==sel_time) & (df_t_all['AwayWin']==1)].shape[0]
-                losses = df_t_all[(df_t_all['HomeTeam']==sel_time) & (df_t_all['AwayWin']==1)].shape[0] + df_t_all[(df_t_all['AwayTeam']==sel_time) & (df_t_all['HomeWin']==1)].shape[0]
-                draws = len(df_t_all) - (wins + losses)
-                fig_res = px.pie(values=[wins, draws, losses], names=["Vitórias", "Empates", "Derrotas"], title="Resultados Gerais", color_discrete_sequence=['#2ecc71', '#95a5a6', '#e74c3c'])
-                col_g1, col_g2 = st.columns(2)
-                col_g1.plotly_chart(fig_goals, use_container_width=True)
-                col_g2.plotly_chart(fig_res, use_container_width=True)
-                st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
+            # Filtros
+            df_home = df_recent[df_recent['HomeTeam'] == sel_time]
+            df_away = df_recent[df_recent['AwayTeam'] == sel_time]
+            df_all = pd.concat([df_home, df_away]).sort_values('Date', ascending=False)
+            
+            if not df_all.empty:
+                # 1. Identificar Liga Principal para comparar força
+                main_league = df_all['League_Custom'].mode()[0]
+                df_league = df_recent[df_recent['League_Custom'] == main_league]
+                avg_goals_league = (df_league['FTHG'] + df_league['FTAG']).mean() / 2 # Média por time
+                
+                # Cálculo de Força
+                team_scored_avg = (df_home['FTHG'].mean() + df_away['FTAG'].mean()) / 2
+                team_conceded_avg = (df_home['FTAG'].mean() + df_away['FTHG'].mean()) / 2
+                
+                att_strength = (team_scored_avg / avg_goals_league) * 100 if avg_goals_league > 0 else 0
+                def_strength = (team_conceded_avg / avg_goals_league) * 100 if avg_goals_league > 0 else 0 # > 100 é defesa fraca
+                
+                st.markdown(f"### 📊 Raio-X: {sel_time} ({main_league})")
+                
+                # Linha 1: Força
+                k1, k2 = st.columns(2)
+                k1.metric("⚔️ Força de Ataque", f"{att_strength:.0f}%", help="Acima de 100% = Ataque Melhor que a Média da Liga")
+                k2.metric("🛡️ Força Defensiva", f"{def_strength:.0f}%", help="Abaixo de 100% = Defesa Melhor que a Média. Acima = Sofre muitos gols.")
+                
+                st.divider()
+                
+                # Linha 2: Gols Casa/Fora
+                st.subheader("⚽ Gols (Médias)")
+                g1, g2, g3, g4 = st.columns(4)
+                g1.metric("Marcados (Casa)", f"{df_home['FTHG'].mean():.2f}")
+                g2.metric("Marcados (Fora)", f"{df_away['FTAG'].mean():.2f}")
+                g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
+                g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
+                
+                # Linha 3: Percentuais de Over
+                st.subheader("📈 Tendências de Over")
+                over05ht = (df_all['Over05HT'] == 1).mean()
+                over15ft = (df_all['Over15FT'] == 1).mean()
+                over25ft = (df_all['Over25FT'] == 1).mean()
+                
+                st.write(f"Over 0.5 HT ({over05ht*100:.0f}%)")
+                st.progress(float(over05ht))
+                st.write(f"Over 1.5 FT ({over15ft*100:.0f}%)")
+                st.progress(float(over15ft))
+                st.write(f"Over 2.5 FT ({over25ft*100:.0f}%)")
+                st.progress(float(over25ft))
+                
+                st.divider()
+                
+                # Linha 4: Cantos
+                st.subheader("🚩 Escanteios (Média)")
+                c1, c2 = st.columns(2)
+                c1.metric("A Favor (Casa)", f"{df_home['HC'].mean():.1f}")
+                c2.metric("A Favor (Fora)", f"{df_away['AC'].mean():.1f}")
+                
+                st.divider()
+                
+                # Linha 5: Últimos 10 Jogos (Estilizado)
+                st.subheader("🗓️ Últimos 10 Jogos")
+                last_10 = df_all.head(10)[['Date', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HomeWin', 'AwayWin']].copy()
+                
+                # Função de Estilo
+                def color_results(row):
+                    color = ''
+                    # Se time selecionado ganhou em casa
+                    if row['HomeTeam'] == sel_time and row['HomeWin'] == 1: color = 'background-color: #2ea043; color: white'
+                    # Se time selecionado ganhou fora
+                    elif row['AwayTeam'] == sel_time and row['AwayWin'] == 1: color = 'background-color: #2ea043; color: white'
+                    # Empate
+                    elif row['FTHG'] == row['FTAG']: color = 'background-color: #6e7681; color: white'
+                    # Derrota
+                    else: color = 'background-color: #da3633; color: white'
+                    return [color] * len(row)
+
+                st.dataframe(last_10.style.apply(color_results, axis=1), use_container_width=True)
 
     # 5. RAIO-X LIGAS
     elif menu == "🌍 Raio-X Ligas":
