@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V47",
+    page_title="Mestre dos Greens PRO - V48",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -310,7 +310,7 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict, top_scores
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    # CORREÇÃO V47: Eixos Categoricos (Sem decimais)
+    # Eixos: Mandante ESQUERDA, Visitante TOPO/BAIXO
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
@@ -328,8 +328,8 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     
     fig.update_layout(
         title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
-        xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), # TYPE=CATEGORY FIX
-        yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), # TYPE=CATEGORY FIX
+        xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), 
+        yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), 
         annotations=[dict(x=0.5, y=-0.15, xref='paper', yref='paper', text=f"<b>{away_name}</b> (Visitante)", showarrow=False, font=dict(size=18, color='#fff'))],
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -339,7 +339,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V47")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V48")
 
 df_recent, df_today, full_df = load_data()
 
@@ -392,6 +392,21 @@ if not df_recent.empty:
                     col_matriz, col_probs = st.columns([1.5, 1])
                     with col_matriz:
                         exibir_matriz_visual(matriz, home_sel, away_sel)
+                        
+                        # BOTÃO TELEGRAM
+                        if st.button("📤 Enviar Análise para Telegram", key="btn_send_grade"):
+                            msg = f"🔥 *ANÁLISE MESTRE DOS GREENS* 🔥\n\n"
+                            msg += f"⚽ *{home_sel} x {away_sel}*\n"
+                            msg += f"🏆 {liga_match}\n\n"
+                            msg += f"📊 *Probabilidades:*\n"
+                            msg += f"🏠 Casa: {probs['HomeWin']*100:.1f}%\n"
+                            msg += f"✈️ Fora: {probs['AwayWin']*100:.1f}%\n"
+                            msg += f"🔥 Over 2.5: {probs['Over25']*100:.1f}%\n"
+                            msg += f"🤝 BTTS: {probs['BTTS']*100:.1f}%\n\n"
+                            msg += f"🎯 *Placar Provável:* {top_scores[0]['Placar']}\n"
+                            if enviar_telegram(msg): st.success("Enviado com sucesso!")
+                            else: st.error("Erro ao enviar.")
+
                         if st.button("📋 Ver Top Placares", key="btn_grade"):
                             st.subheader("Placares Mais Prováveis")
                             for score in top_scores:
@@ -417,7 +432,7 @@ if not df_recent.empty:
     # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V47")
+        st.header("⚔️ Simulador Manual")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -439,13 +454,25 @@ if not df_recent.empty:
                     
                     exibir_matriz_visual(matriz, team_a, team_b)
                     
-                    if st.button("📋 Ver Top Placares (Manual)", key="btn_sim"):
-                        for score in top_scores:
-                            odd_j = get_odd_justa(score['Prob'])
-                            st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
+                    c_btn1, c_btn2 = st.columns(2)
+                    with c_btn1:
+                        if st.button("📤 Enviar para Telegram", key="btn_send_sim"):
+                            msg = f"🔥 *SIMULAÇÃO MESTRE DOS GREENS* 🔥\n\n"
+                            msg += f"⚽ *{team_a} x {team_b}*\n"
+                            msg += f"📊 *Probabilidades:*\n"
+                            msg += f"🏠 Casa: {probs['HomeWin']*100:.1f}%\n"
+                            msg += f"🔥 Over 2.5: {probs['Over25']*100:.1f}%\n"
+                            msg += f"🎯 *Placar:* {top_scores[0]['Placar']}\n"
+                            if enviar_telegram(msg): st.success("Enviado!")
+                            else: st.error("Erro.")
+                    
+                    with c_btn2:
+                        if st.button("📋 Ver Top Placares", key="btn_sim"):
+                            for score in top_scores:
+                                odd_j = get_odd_justa(score['Prob'])
+                                st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
                     
                     st.divider()
-                    
                     st.subheader("📊 Probabilidades de Resultado (1x2)")
                     m1, m2, m3 = st.columns(3)
                     m1.metric("🏠 Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
@@ -509,11 +536,10 @@ if not df_recent.empty:
                 st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
     # ==============================================================================
-    # 4. RAIO-X LIGAS (CORRIGIDO)
+    # 4. RAIO-X LIGAS
     # ==============================================================================
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência de Ligas")
-        # Adicionado Over 0.5 HT % e Over 1.5 FT %
         stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
             'Média Gols': (x['FTHG']+x['FTAG']).mean(),
             'Over 0.5 HT %': x['Over05HT'].mean() * 100,
