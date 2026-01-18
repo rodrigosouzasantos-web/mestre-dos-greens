@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V46",
+    page_title="Mestre dos Greens PRO - V47",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -310,7 +310,7 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict, top_scores
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    # Eixos CORRETOS V46: Mandante na Esquerda, Visitante topo/baixo
+    # CORREÇÃO V47: Eixos Categoricos (Sem decimais)
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
@@ -328,8 +328,8 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     
     fig.update_layout(
         title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
-        xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True),
-        yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True),
+        xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), # TYPE=CATEGORY FIX
+        yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), # TYPE=CATEGORY FIX
         annotations=[dict(x=0.5, y=-0.15, xref='paper', yref='paper', text=f"<b>{away_name}</b> (Visitante)", showarrow=False, font=dict(size=18, color='#fff'))],
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -339,7 +339,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V46")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V47")
 
 df_recent, df_today, full_df = load_data()
 
@@ -414,10 +414,10 @@ if not df_recent.empty:
         else: st.info("Aguardando jogos...")
 
     # ==============================================================================
-    # 2. SIMULADOR MANUAL (CORRIGIDO E COMPLETO)
+    # 2. SIMULADOR MANUAL
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V46")
+        st.header("⚔️ Simulador Manual V47")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -446,7 +446,6 @@ if not df_recent.empty:
                     
                     st.divider()
                     
-                    # LINHA 1: 1x2 (Match Odds)
                     st.subheader("📊 Probabilidades de Resultado (1x2)")
                     m1, m2, m3 = st.columns(3)
                     m1.metric("🏠 Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
@@ -454,8 +453,6 @@ if not df_recent.empty:
                     m3.metric("✈️ Vitória Visitante", f"{probs['AwayWin']*100:.1f}%")
                     
                     st.divider()
-                    
-                    # LINHA 2: Gols
                     st.subheader("⚽ Probabilidades de Gols")
                     g1, g2, g3, g4 = st.columns(4)
                     g1.metric("⚡ Over 0.5 HT", f"{prob_over05_ht:.1f}%")
@@ -464,8 +461,6 @@ if not df_recent.empty:
                     g4.metric("🧱 Under 3.5 FT", f"{probs['Under35']*100:.1f}%")
                     
                     st.divider()
-                    
-                    # LINHA 3: Cantos
                     st.subheader("🚩 Probabilidades de Escanteios")
                     c1, c2 = st.columns(2)
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
@@ -514,21 +509,20 @@ if not df_recent.empty:
                 st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
     # ==============================================================================
-    # 4. RAIO-X LIGAS
+    # 4. RAIO-X LIGAS (CORRIGIDO)
     # ==============================================================================
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência de Ligas")
-        # TURBINADO: Adicionado Over 0.5 HT e Over 1.5 FT
+        # Adicionado Over 0.5 HT % e Over 1.5 FT %
         stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
             'Média Gols': (x['FTHG']+x['FTAG']).mean(),
-            'Over 0.5 HT %': x['Over05HT'].mean() * 100, # NOVA COLUNA
-            'Over 1.5 FT %': x['Over15FT'].mean() * 100, # NOVA COLUNA
+            'Over 0.5 HT %': x['Over05HT'].mean() * 100,
+            'Over 1.5 FT %': x['Over15FT'].mean() * 100,
             'Over 2.5 %': ((x['FTHG']+x['FTAG'])>2.5).mean()*100,
             'BTTS %': ((x['FTHG']>0)&(x['FTAG']>0)).mean()*100,
             'Cantos': (x['HC']+x['AC']).mean()
         })).reset_index()
         
-        # Gráfico mantido
         fig_gols = px.bar(stats_liga.sort_values('Média Gols', ascending=False).head(20), 
                           x='League_Custom', y='Média Gols', 
                           color='Over 2.5 %', 
@@ -536,7 +530,6 @@ if not df_recent.empty:
                           color_continuous_scale='Spectral')
         st.plotly_chart(fig_gols, use_container_width=True)
         
-        # Tabela com as novas colunas
         st.dataframe(stats_liga.sort_values('Média Gols', ascending=False), hide_index=True, use_container_width=True)
 
 else: st.info("Carregando...")
