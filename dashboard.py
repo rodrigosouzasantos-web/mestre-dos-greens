@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V45.6",
+    page_title="Mestre dos Greens PRO - V46",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -310,7 +310,7 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict, top_scores
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    # CORREÇÃO V45.6: Mandante à ESQUERDA, Visitante embaixo/numeração topo
+    # Eixos CORRETOS V46: Mandante na Esquerda, Visitante topo/baixo
     colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
     x_labels = ['0', '1', '2', '3', '4', '5+']
     y_labels = ['0', '1', '2', '3', '4', '5+']
@@ -339,7 +339,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V45.6")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V46")
 
 df_recent, df_today, full_df = load_data()
 
@@ -392,7 +392,6 @@ if not df_recent.empty:
                     col_matriz, col_probs = st.columns([1.5, 1])
                     with col_matriz:
                         exibir_matriz_visual(matriz, home_sel, away_sel)
-                        # Botão Grade do Dia
                         if st.button("📋 Ver Top Placares", key="btn_grade"):
                             st.subheader("Placares Mais Prováveis")
                             for score in top_scores:
@@ -415,10 +414,10 @@ if not df_recent.empty:
         else: st.info("Aguardando jogos...")
 
     # ==============================================================================
-    # 2. SIMULADOR MANUAL (CORRIGIDO)
+    # 2. SIMULADOR MANUAL (CORRIGIDO E COMPLETO)
     # ==============================================================================
     elif menu == "⚔️ Simulador Manual":
-        st.header("⚔️ Simulador Manual V45.6")
+        st.header("⚔️ Simulador Manual V46")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         c1, c2 = st.columns(2)
         team_a = c1.selectbox("Casa:", all_teams, index=None)
@@ -519,13 +518,17 @@ if not df_recent.empty:
     # ==============================================================================
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência de Ligas")
+        # TURBINADO: Adicionado Over 0.5 HT e Over 1.5 FT
         stats_liga = df_recent.groupby('League_Custom').apply(lambda x: pd.Series({
             'Média Gols': (x['FTHG']+x['FTAG']).mean(),
+            'Over 0.5 HT %': x['Over05HT'].mean() * 100, # NOVA COLUNA
+            'Over 1.5 FT %': x['Over15FT'].mean() * 100, # NOVA COLUNA
             'Over 2.5 %': ((x['FTHG']+x['FTAG'])>2.5).mean()*100,
             'BTTS %': ((x['FTHG']>0)&(x['FTAG']>0)).mean()*100,
             'Cantos': (x['HC']+x['AC']).mean()
         })).reset_index()
         
+        # Gráfico mantido
         fig_gols = px.bar(stats_liga.sort_values('Média Gols', ascending=False).head(20), 
                           x='League_Custom', y='Média Gols', 
                           color='Over 2.5 %', 
@@ -533,6 +536,7 @@ if not df_recent.empty:
                           color_continuous_scale='Spectral')
         st.plotly_chart(fig_gols, use_container_width=True)
         
+        # Tabela com as novas colunas
         st.dataframe(stats_liga.sort_values('Média Gols', ascending=False), hide_index=True, use_container_width=True)
 
 else: st.info("Carregando...")
