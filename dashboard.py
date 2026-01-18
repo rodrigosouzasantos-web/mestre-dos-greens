@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V53",
+    page_title="Mestre dos Greens PRO - V54",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -155,6 +155,7 @@ URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet
 @st.cache_data(ttl=3600)
 def load_data():
     all_dfs = []
+    # Mescla as duas listas
     TODAS_URLS = list(URLS_HISTORICAS.items()) + list(URLS_ATUAIS.items())
     progress_text = f"Carregando {len(TODAS_URLS)} fontes de dados..."
     my_bar = st.progress(0, text=progress_text)
@@ -303,7 +304,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V53")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V54")
 
 df_recent, df_today, full_df = load_data()
 
@@ -443,16 +444,18 @@ if not df_recent.empty:
                 col_g2.plotly_chart(fig_res, use_container_width=True)
                 st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
-    # 4. RAIO-X LIGAS (CORRIGIDO: CANTOS)
+    # 4. RAIO-X LIGAS (CORRIGIDO VISUAL E DADOS)
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência Temporal de Ligas (Ano a Ano)")
         all_leagues = sorted(df_recent['League_Custom'].unique())
         options = ["Todas as Ligas"] + all_leagues
         selected_leagues = st.multiselect("Selecione:", options, default=[])
+        
         if not selected_leagues or "Todas as Ligas" in selected_leagues:
             df_filtered = df_recent
         else:
             df_filtered = df_recent[df_recent['League_Custom'].isin(selected_leagues)]
+            
         df_filtered['Year'] = df_filtered['Date'].dt.year
         
         stats_ano = df_filtered.groupby(['League_Custom', 'Year']).apply(lambda x: pd.Series({
@@ -464,11 +467,18 @@ if not df_recent.empty:
             'Cantos (Média)': (x['HC'] + x['AC']).mean()
         })).reset_index()
         
-        stats_ano = stats_ano.round(2)
+        # Garante que o Ano seja exibido como String limpa na tabela
+        stats_ano_display = stats_ano.copy()
+        stats_ano_display['Year'] = stats_ano_display['Year'].astype(str)
+        stats_ano_display = stats_ano_display.round(2)
+        
         st.subheader("📊 Tabela Detalhada (Ano a Ano)")
-        st.dataframe(stats_ano, use_container_width=True)
+        st.dataframe(stats_ano_display, use_container_width=True)
+        
         st.subheader("📈 Tendência de Gols (Evolução)")
+        # Correção do Gráfico: Eixo X como Categoria
         fig_evol = px.line(stats_ano, x='Year', y='Gols (Média)', color='League_Custom', markers=True)
+        fig_evol.update_layout(xaxis=dict(type='category'))
         st.plotly_chart(fig_evol, use_container_width=True)
 
 else: st.info("Carregando...")
