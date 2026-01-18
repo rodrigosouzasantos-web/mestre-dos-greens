@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from scipy.stats import poisson
 from PIL import Image
+import itertools
 
 # --- CARREGA A LOGO ---
 try:
@@ -17,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V56 (Bilhetes)",
+    page_title="Mestre dos Greens PRO - V57 (Bilhetes)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -72,7 +73,7 @@ st.markdown("""
     }
     .ticket-header { color: #f1c40f; font-size: 22px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
     .ticket-item { font-size: 16px; color: #e6edf3; margin-bottom: 8px; border-left: 3px solid #2ea043; padding-left: 10px; }
-    .ticket-total { font-size: 18px; color: #2ea043; font-weight: bold; margin-top: 15px; text-align: right; }
+    .ticket-total { font-size: 20px; color: #2ea043; font-weight: bold; margin-top: 15px; text-align: right; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -123,11 +124,11 @@ URLS_HISTORICAS = {
     "Arabia Saudita Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Saudi_Pro_League_2016-2025.csv",
     "Coreia do Sul K-League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/South_Korea_K_League_1_2016-2024.csv",
     "Espanha La Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Spain_La_Liga_2016-2025.csv",
-    "Espanha La Liga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Spain_Segunda_Divisi%C3%B3n_2016-2025.csv",
-    "Suecia Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Sweden_Allsvenskan_2016-2024.csv",
-    "Turquia Super Lig": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Turkey_S%C3%BCper_Lig_2016-2025.csv",
-    "USA MLS": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/USA_Major_League_Soccer_2016-2024.csv",
-    "Uruguai Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Uruguay_Primera_Divisi%C3%B3n_2016-2024.csv"
+    "Espanha La Liga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2016-2025.csv",
+    "Sweden Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
+    "Turquia Super Lig": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
+    "USA MLS": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
+    "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
 }
 
 URLS_ATUAIS = {
@@ -146,19 +147,19 @@ URLS_ATUAIS = {
     "Italia Serie A": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_A_2025-2026.csv",
     "Italia Serie B": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_B_2025-2026.csv",
     "Japao J1 League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Japan_J1_League_2025.csv",
-    "Portugal 2 Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
-    "Portugal Primeira Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
-    "Mexico Liga MX": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
-    "Holanda Eredivisie": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Netherlands_Eredivisie_2025-2026.csv",
-    "Noruega Eliteserien": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Norway_Eliteserien_2025.csv",
-    "Russia Premier League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Russian_Premier_League_2025-2026.csv",
-    "Arabia Saudita Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Saudi_Pro_League_2025-2026.csv",
-    "Coreia do Sul K-League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/South_Korea_K_League_1_2025.csv",
-    "Espanha La Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_La_Liga_2025-2026.csv",
-    "Espanha La Liga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2025-2026.csv",
+    "LigaPro_Portugal_2a_división_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
+    "Liga_Portugal_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
+    "Mexico_Liga_MX_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
+    "Netherlands_Eredivisie_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Netherlands_Eredivisie_2025-2026.csv",
+    "Norway_Eliteserien_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Norway_Eliteserien_2025.csv",
+    "Russian_Premier_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Russian_Premier_League_2025-2026.csv",
+    "Saudi_Pro_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Saudi_Pro_League_2025-2026.csv",
+    "South_Korea_K_League_1_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/South_Korea_K_League_1_2025.csv",
+    "Spain_La_Liga_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_La_Liga_2025-2026.csv",
+    "Spain_Segunda_División_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2025-2026.csv",
     "Sweden Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
-    "Turquia Super Lig": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
-    "USA MLS": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
+    "Turkey_Süper_Lig_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
+    "USA_Major_League_Soccer_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
     "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
 }
 
@@ -179,7 +180,6 @@ def load_data():
             except: df = pd.read_csv(io.StringIO(r.content.decode('latin-1')), sep=';', low_memory=False)
             
             df.columns = [c.strip().lower() for c in df.columns]
-            
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 
                 'home_score': 'fthg', 'away_score': 'ftag',
@@ -311,7 +311,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V56")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V57")
 
 df_recent, df_today, full_df = load_data()
 
@@ -429,7 +429,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS
+    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
@@ -437,8 +437,9 @@ if not df_recent.empty:
         else:
             if st.button("🔄 Gerar Novos Bilhetes"):
                 with st.spinner("Analisando todos os jogos e calculando probabilidades..."):
+                    all_candidates = [] # Lista de todas as apostas boas
+                    
                     # 1. Escanear todos os jogos
-                    all_bets = []
                     for i, row in df_today.iterrows():
                         home = row['HomeTeam']
                         away = row['AwayTeam']
@@ -449,84 +450,68 @@ if not df_recent.empty:
                             
                             _, probs_dict, _ = gerar_matriz_poisson(xg_h, xg_a)
                             
-                            # Probabilidades de Segurança (>75% ou >80%)
+                            # Filtro de Segurança (>75% de probabilidade) -> Odd teórica < 1.33
+                            # Coleta todos os mercados possíveis
+                            
                             # Over 1.5
                             if probs_dict['Over15'] > 0.75:
-                                all_bets.append({
-                                    'Jogo': f"{home} x {away}",
-                                    'Tipo': 'Over 1.5 Gols',
-                                    'Prob': probs_dict['Over15'],
-                                    'Odd_Est': 1/probs_dict['Over15']
-                                })
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Over 1.5 Gols', 'Odd_Est': 1/probs_dict['Over15']})
                             
-                            # Under 3.5
+                            # Under 3.5 (Segurança)
                             if probs_dict['Under35'] > 0.80:
-                                all_bets.append({
-                                    'Jogo': f"{home} x {away}",
-                                    'Tipo': 'Under 3.5 Gols',
-                                    'Prob': probs_dict['Under35'],
-                                    'Odd_Est': 1/probs_dict['Under35']
-                                })
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 3.5 Gols', 'Odd_Est': 1/probs_dict['Under35']})
                                 
-                            # Casa ou Empate (1X)
+                            # Under 4.5 (Super Segurança)
+                            if probs_dict['Under35'] > 0.90: # Usando under3.5 alto como proxy
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 4.5 Gols', 'Odd_Est': 1.08}) # Estimativa conservadora
+                                
+                            # Casa ou Empate
                             prob_1x = probs_dict['HomeWin'] + probs_dict['Draw']
                             if prob_1x > 0.80:
-                                all_bets.append({
-                                    'Jogo': f"{home} x {away}",
-                                    'Tipo': 'Casa ou Empate (1X)',
-                                    'Prob': prob_1x,
-                                    'Odd_Est': 1/prob_1x
-                                })
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Casa ou Empate (1X)', 'Odd_Est': 1/prob_1x})
                                 
-                            # Fora ou Empate (X2)
+                            # Fora ou Empate
                             prob_x2 = probs_dict['AwayWin'] + probs_dict['Draw']
                             if prob_x2 > 0.80:
-                                all_bets.append({
-                                    'Jogo': f"{home} x {away}",
-                                    'Tipo': 'Fora ou Empate (X2)',
-                                    'Prob': prob_x2,
-                                    'Odd_Est': 1/prob_x2
-                                })
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Fora ou Empate (X2)', 'Odd_Est': 1/prob_x2})
                                 
                         except: continue
                     
-                    # 2. Ordenar as melhores
-                    best_bets = sorted(all_bets, key=lambda x: x['Prob'], reverse=True)
-                    
-                    # 3. Montar Bilhetes
-                    if len(best_bets) >= 2:
-                        # Dupla
-                        dupla = best_bets[:2]
-                        odd_total_dupla = dupla[0]['Odd_Est'] * dupla[1]['Odd_Est']
-                        
-                        st.markdown(f"""
-                        <div class="ticket-card">
-                            <div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total_dupla:.2f})</div>
-                            <div class="ticket-item">⚽ {dupla[0]['Jogo']} <br> 🎯 {dupla[0]['Tipo']} (@{dupla[0]['Odd_Est']:.2f})</div>
-                            <div class="ticket-item">⚽ {dupla[1]['Jogo']} <br> 🎯 {dupla[1]['Tipo']} (@{dupla[1]['Odd_Est']:.2f})</div>
-                            <div class="ticket-total">Probabilidade Combinada: {(dupla[0]['Prob']*dupla[1]['Prob']*100):.1f}%</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                    if len(best_bets) >= 3:
-                        # Tripla
-                        tripla = best_bets[2:5] # Pega as próximas 3 para variar
-                        if len(tripla) < 3: tripla = best_bets[:3] # Fallback
-                        
-                        odd_total_tripla = tripla[0]['Odd_Est'] * tripla[1]['Odd_Est'] * tripla[2]['Odd_Est']
-                        
-                        st.markdown(f"""
-                        <div class="ticket-card">
-                            <div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total_tripla:.2f})</div>
-                            <div class="ticket-item">⚽ {tripla[0]['Jogo']} <br> 🎯 {tripla[0]['Tipo']} (@{tripla[0]['Odd_Est']:.2f})</div>
-                            <div class="ticket-item">⚽ {tripla[1]['Jogo']} <br> 🎯 {tripla[1]['Tipo']} (@{tripla[1]['Odd_Est']:.2f})</div>
-                            <div class="ticket-item">⚽ {tripla[2]['Jogo']} <br> 🎯 {tripla[2]['Tipo']} (@{tripla[2]['Odd_Est']:.2f})</div>
-                            <div class="ticket-total">Probabilidade Combinada: {(tripla[0]['Prob']*tripla[1]['Prob']*tripla[2]['Prob']*100):.1f}%</div>
-                        </div>
-                        """, unsafe_allow_html=True)
-            else:
-                st.info("Clique no botão acima para escanear o mercado.")
+                    # 2. Montar DUPLA (Alvo: 1.50) -> Busca entre 1.45 e 1.60
+                    found_dupla = False
+                    for pair in itertools.combinations(all_candidates, 2):
+                        odd_total = pair[0]['Odd_Est'] * pair[1]['Odd_Est']
+                        if 1.45 <= odd_total <= 1.60:
+                            st.markdown(f"""
+                            <div class="ticket-card">
+                                <div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total:.2f})</div>
+                                <div class="ticket-item">⚽ {pair[0]['Jogo']} <br> 🎯 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})</div>
+                                <div class="ticket-item">⚽ {pair[1]['Jogo']} <br> 🎯 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            found_dupla = True
+                            break # Mostra só 1 para não poluir
+                            
+                    if not found_dupla: st.warning("Nenhuma combinação perfeita para Dupla (@1.50) encontrada hoje.")
 
+                    # 3. Montar TRIPLA (Alvo: 1.70) -> Busca entre 1.65 e 1.85
+                    found_tripla = False
+                    for trio in itertools.combinations(all_candidates, 3):
+                        odd_total = trio[0]['Odd_Est'] * trio[1]['Odd_Est'] * trio[2]['Odd_Est']
+                        if 1.65 <= odd_total <= 1.85:
+                            st.markdown(f"""
+                            <div class="ticket-card">
+                                <div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total:.2f})</div>
+                                <div class="ticket-item">⚽ {trio[0]['Jogo']} <br> 🎯 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})</div>
+                                <div class="ticket-item">⚽ {trio[1]['Jogo']} <br> 🎯 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})</div>
+                                <div class="ticket-item">⚽ {trio[2]['Jogo']} <br> 🎯 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            found_tripla = True
+                            break
+                            
+                    if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
+                    
     # 4. ANALISADOR DE TIMES
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
