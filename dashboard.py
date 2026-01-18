@@ -17,7 +17,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V52",
+    page_title="Mestre dos Greens PRO - V53",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -155,7 +155,6 @@ URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet
 @st.cache_data(ttl=3600)
 def load_data():
     all_dfs = []
-    # Mescla as duas listas
     TODAS_URLS = list(URLS_HISTORICAS.items()) + list(URLS_ATUAIS.items())
     progress_text = f"Carregando {len(TODAS_URLS)} fontes de dados..."
     my_bar = st.progress(0, text=progress_text)
@@ -169,16 +168,12 @@ def load_data():
             
             df.columns = [c.strip().lower() for c in df.columns]
             
-            # Mapeamento para Cartões e Gols
+            # Mapeamento
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 
                 'home_score': 'fthg', 'away_score': 'ftag',
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
-                'team_a_corners': 'HC', 'team_b_corners': 'AC',
-                # Mapeamento de Cartões (Se existir na fonte)
-                'home_yellow_cards': 'HY', 'away_yellow_cards': 'AY',
-                'home_red_cards': 'HR', 'away_red_cards': 'AR',
-                'hy': 'HY', 'ay': 'AY', 'hr': 'HR', 'ar': 'AR'
+                'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=map_cols, inplace=True)
             
@@ -186,26 +181,25 @@ def load_data():
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
             # Garante colunas numéricas
-            cols_num = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            cols_num = ['fthg','ftag','HTHG','HTAG','HC','AC']
             for c in cols_num: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
             
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
             
-            # Criação de Métricas
+            # Métricas
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
             df['Over25FT'] = ((df['FTHG'] + df['FTAG']) > 2.5).astype(int)
             df['BTTS'] = ((df['FTHG'] > 0) & (df['FTAG'] > 0)).astype(int)
             df['HomeWin'] = (df['FTHG'] > df['FTAG']).astype(int)
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
-            df['TotalCards'] = df['HY'] + df['AY'] + df['HR'] + df['AR'] # Total de Cartões
             
             df['League_Custom'] = nome_oficial
             
             if 'HomeTeam' in df.columns: 
-                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','TotalCards']])
+                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC']])
         except: pass
         my_bar.progress((i + 1) / len(TODAS_URLS))
 
@@ -309,7 +303,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V52")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V53")
 
 df_recent, df_today, full_df = load_data()
 
@@ -408,59 +402,57 @@ if not df_recent.empty:
                             for score in top_scores:
                                 odd_j = get_odd_justa(score['Prob'])
                                 st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
-                    
                     st.divider()
-                    st.subheader("📊 1x2")
+                    st.subheader("📊 Probabilidades de Resultado (1x2)")
                     m1, m2, m3 = st.columns(3)
-                    m1.metric("Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
-                    m2.metric("Empate", f"{probs['Draw']*100:.1f}%")
-                    m3.metric("Vitória Fora", f"{probs['AwayWin']*100:.1f}%")
-                    
+                    m1.metric("🏠 Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
+                    m2.metric("⚖️ Empate", f"{probs['Draw']*100:.1f}%")
+                    m3.metric("✈️ Vitória Visitante", f"{probs['AwayWin']*100:.1f}%")
                     st.divider()
-                    st.subheader("⚽ Gols")
+                    st.subheader("⚽ Probabilidades de Gols")
                     g1, g2, g3, g4 = st.columns(4)
-                    g1.metric("0.5 HT", f"{prob_over05_ht:.1f}%")
-                    g2.metric("1.5 FT", f"{probs['Over15']*100:.1f}%")
-                    g3.metric("2.5 FT", f"{probs['Over25']*100:.1f}%")
-                    g4.metric("Under 3.5", f"{probs['Under35']*100:.1f}%")
-                    
+                    g1.metric("⚡ Over 0.5 HT", f"{prob_over05_ht:.1f}%")
+                    g2.metric("🛡️ Over 1.5 FT", f"{probs['Over15']*100:.1f}%")
+                    g3.metric("🔥 Over 2.5 FT", f"{probs['Over25']*100:.1f}%")
+                    g4.metric("🧱 Under 3.5 FT", f"{probs['Under35']*100:.1f}%")
                     st.divider()
-                    st.subheader("🚩 Cantos")
+                    st.subheader("🚩 Probabilidades de Escanteios")
                     c1, c2 = st.columns(2)
-                    c1.metric("Média", f"{exp_cantos:.1f}")
-                    c2.metric("Over 9.5", f"{probs_cantos['Over 9.5']:.1f}%")
+                    c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
+                    c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
     # 3. ANALISADOR DE TIMES
     elif menu == "🔎 Analisador de Times":
-        st.header("🔎 Scout Profundo")
+        st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
-        sel_time = st.selectbox("Time:", all_teams_db, index=None)
+        sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         if sel_time:
             df_t_home = df_recent[df_recent['HomeTeam'] == sel_time]
             df_t_away = df_recent[df_recent['AwayTeam'] == sel_time]
             df_t_all = pd.concat([df_t_home, df_t_away]).sort_values('Date', ascending=False)
             if not df_t_all.empty:
                 st.markdown(f"### 📊 Estatísticas: {sel_time}")
-                goals_data = pd.DataFrame({"Tipo": ["Gols Pró (Casa)", "Sofridos (Casa)", "Gols Pró (Fora)", "Sofridos (Fora)"], "Média": [df_t_home['FTHG'].mean(), df_t_home['FTAG'].mean(), df_t_away['FTAG'].mean(), df_t_away['FTHG'].mean()]})
-                fig_goals = px.bar(goals_data, x="Tipo", y="Média", color="Tipo")
-                st.plotly_chart(fig_goals, use_container_width=True)
-                st.dataframe(df_t_all.head(10), hide_index=True, use_container_width=True)
+                goals_data = pd.DataFrame({"Tipo": ["Gols Pró (Casa)", "Sofridos (Casa)", "Gols Pró (Fora)", "Sofridos (Fora)"], "Média": [df_t_home['FTHG'].mean() if not df_t_home.empty else 0, df_t_home['FTAG'].mean() if not df_t_home.empty else 0, df_t_away['FTAG'].mean() if not df_t_away.empty else 0, df_t_away['FTHG'].mean() if not df_t_away.empty else 0]})
+                fig_goals = px.bar(goals_data, x="Tipo", y="Média", color="Tipo", title="Média de Gols (Casa vs Fora)")
+                wins = df_t_all[(df_t_all['HomeTeam']==sel_time) & (df_t_all['HomeWin']==1)].shape[0] + df_t_all[(df_t_all['AwayTeam']==sel_time) & (df_t_all['AwayWin']==1)].shape[0]
+                losses = df_t_all[(df_t_all['HomeTeam']==sel_time) & (df_t_all['AwayWin']==1)].shape[0] + df_t_all[(df_t_all['AwayTeam']==sel_time) & (df_t_all['HomeWin']==1)].shape[0]
+                draws = len(df_t_all) - (wins + losses)
+                fig_res = px.pie(values=[wins, draws, losses], names=["Vitórias", "Empates", "Derrotas"], title="Resultados Gerais", color_discrete_sequence=['#2ecc71', '#95a5a6', '#e74c3c'])
+                col_g1, col_g2 = st.columns(2)
+                col_g1.plotly_chart(fig_goals, use_container_width=True)
+                col_g2.plotly_chart(fig_res, use_container_width=True)
+                st.dataframe(df_t_all[['Date','League_Custom','HomeTeam','FTHG','FTAG','AwayTeam']].head(10), hide_index=True, use_container_width=True)
 
-    # 4. RAIO-X LIGAS (CORRIGIDO)
+    # 4. RAIO-X LIGAS (CORRIGIDO: CANTOS)
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência Temporal de Ligas (Ano a Ano)")
-        
         all_leagues = sorted(df_recent['League_Custom'].unique())
-        # Filtro: Primeira opção é "Todas as Ligas"
         options = ["Todas as Ligas"] + all_leagues
         selected_leagues = st.multiselect("Selecione:", options, default=[])
-        
-        # Lógica: Se vazio ou "Todas", pega tudo. Senão, filtra.
         if not selected_leagues or "Todas as Ligas" in selected_leagues:
             df_filtered = df_recent
         else:
             df_filtered = df_recent[df_recent['League_Custom'].isin(selected_leagues)]
-            
         df_filtered['Year'] = df_filtered['Date'].dt.year
         
         stats_ano = df_filtered.groupby(['League_Custom', 'Year']).apply(lambda x: pd.Series({
@@ -469,15 +461,12 @@ if not df_recent.empty:
             'Over 1.5 FT %': x['Over15FT'].mean() * 100,
             'Over 2.5 FT %': ((x['FTHG'] + x['FTAG']) > 2.5).mean() * 100,
             'BTTS %': ((x['FTHG'] > 0) & (x['FTAG'] > 0)).mean() * 100,
-            'Cartões (Média)': x['TotalCards'].mean() if 'TotalCards' in x else 0
+            'Cantos (Média)': (x['HC'] + x['AC']).mean()
         })).reset_index()
         
-        # Correção do Erro de Formatação: Arredonda antes de exibir
         stats_ano = stats_ano.round(2)
-        
         st.subheader("📊 Tabela Detalhada (Ano a Ano)")
         st.dataframe(stats_ano, use_container_width=True)
-        
         st.subheader("📈 Tendência de Gols (Evolução)")
         fig_evol = px.line(stats_ano, x='Year', y='Gols (Média)', color='League_Custom', markers=True)
         st.plotly_chart(fig_evol, use_container_width=True)
