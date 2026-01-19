@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V58 (Scout)",
+    page_title="Mestre dos Greens PRO - V58.1",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -74,6 +74,19 @@ st.markdown("""
     .ticket-header { color: #f1c40f; font-size: 22px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
     .ticket-item { font-size: 16px; color: #e6edf3; margin-bottom: 8px; border-left: 3px solid #2ea043; padding-left: 10px; }
     .ticket-total { font-size: 20px; color: #2ea043; font-weight: bold; margin-top: 15px; text-align: right; }
+    
+    /* Cards Analisador (Força) */
+    .strength-card {
+        background-color: #161b22;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .strength-title { color: #8b949e; font-size: 14px; margin-bottom: 5px; }
+    .strength-value { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
+    .strength-context { font-size: 12px; color: #cfcfcf; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -124,7 +137,7 @@ URLS_HISTORICAS = {
     "Arabia Saudita Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Saudi_Pro_League_2016-2025.csv",
     "Coreia do Sul K-League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/South_Korea_K_League_1_2016-2024.csv",
     "Espanha La Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Spain_La_Liga_2016-2025.csv",
-    "Espanha La Liga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2016-2025.csv",
+    "Espanha La Liga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Spain_Segunda_Divisi%C3%B3n_2016-2025.csv",
     "Sweden Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
     "Turquia Super Lig": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
     "USA MLS": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
@@ -312,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V58")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V58.1")
 
 df_recent, df_today, full_df = load_data()
 
@@ -430,7 +443,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
+    # 3. BILHETES PRONTOS
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
@@ -448,7 +461,6 @@ if not df_recent.empty:
                             if xg_h is None: continue
                             _, probs_dict, _ = gerar_matriz_poisson(xg_h, xg_a)
                             
-                            # Filtro de Segurança (>75% de probabilidade)
                             if probs_dict['Over15'] > 0.75:
                                 all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Over 1.5 Gols', 'Odd_Est': 1/probs_dict['Over15']})
                             if probs_dict['Under35'] > 0.80:
@@ -463,7 +475,6 @@ if not df_recent.empty:
                                 all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Fora ou Empate (X2)', 'Odd_Est': 1/prob_x2})
                         except: continue
                     
-                    # 2. Montar DUPLA (Alvo: 1.50)
                     found_dupla = False
                     for pair in itertools.combinations(all_candidates, 2):
                         odd_total = pair[0]['Odd_Est'] * pair[1]['Odd_Est']
@@ -473,7 +484,6 @@ if not df_recent.empty:
                             break 
                     if not found_dupla: st.warning("Nenhuma combinação perfeita para Dupla (@1.50) encontrada hoje.")
 
-                    # 3. Montar TRIPLA (Alvo: 1.70)
                     found_tripla = False
                     for trio in itertools.combinations(all_candidates, 3):
                         odd_total = trio[0]['Odd_Est'] * trio[1]['Odd_Est'] * trio[2]['Odd_Est']
@@ -483,41 +493,54 @@ if not df_recent.empty:
                             break
                     if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
 
-    # 4. ANALISADOR DE TIMES (REFORMULADO)
+    # 4. ANALISADOR DE TIMES (ATUALIZADO V58.1)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         
         if sel_time:
-            # Filtros
             df_home = df_recent[df_recent['HomeTeam'] == sel_time]
             df_away = df_recent[df_recent['AwayTeam'] == sel_time]
             df_all = pd.concat([df_home, df_away]).sort_values('Date', ascending=False)
             
             if not df_all.empty:
-                # 1. Identificar Liga Principal para comparar força
                 main_league = df_all['League_Custom'].mode()[0]
                 df_league = df_recent[df_recent['League_Custom'] == main_league]
-                avg_goals_league = (df_league['FTHG'] + df_league['FTAG']).mean() / 2 # Média por time
+                avg_goals_league = (df_league['FTHG'] + df_league['FTAG']).mean() / 2 
                 
-                # Cálculo de Força
                 team_scored_avg = (df_home['FTHG'].mean() + df_away['FTAG'].mean()) / 2
                 team_conceded_avg = (df_home['FTAG'].mean() + df_away['FTHG'].mean()) / 2
                 
                 att_strength = (team_scored_avg / avg_goals_league) * 100 if avg_goals_league > 0 else 0
-                def_strength = (team_conceded_avg / avg_goals_league) * 100 if avg_goals_league > 0 else 0 # > 100 é defesa fraca
+                def_strength = (team_conceded_avg / avg_goals_league) * 100 if avg_goals_league > 0 else 0 
                 
                 st.markdown(f"### 📊 Raio-X: {sel_time} ({main_league})")
                 
-                # Linha 1: Força
-                k1, k2 = st.columns(2)
-                k1.metric("⚔️ Força de Ataque", f"{att_strength:.0f}%", help="Acima de 100% = Ataque Melhor que a Média da Liga")
-                k2.metric("🛡️ Força Defensiva", f"{def_strength:.0f}%", help="Abaixo de 100% = Defesa Melhor que a Média. Acima = Sofre muitos gols.")
+                # Cores
+                color_att = "#2ea043" if team_scored_avg > avg_goals_league else "#da3633"
+                color_def = "#2ea043" if team_conceded_avg < avg_goals_league else "#da3633"
+                
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown(f"""
+                    <div class="strength-card">
+                        <div class="strength-title">⚔️ Força de Ataque</div>
+                        <div class="strength-value" style="color: {color_att}">{att_strength:.0f}%</div>
+                        <div class="strength-context">Time: {team_scored_avg:.2f} vs Liga: {avg_goals_league:.2f}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with c2:
+                    st.markdown(f"""
+                    <div class="strength-card">
+                        <div class="strength-title">🛡️ Força Defensiva</div>
+                        <div class="strength-value" style="color: {color_def}">{def_strength:.0f}%</div>
+                        <div class="strength-context">Time: {team_conceded_avg:.2f} vs Liga: {avg_goals_league:.2f}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
                 st.divider()
                 
-                # Linha 2: Gols Casa/Fora
                 st.subheader("⚽ Gols (Médias)")
                 g1, g2, g3, g4 = st.columns(4)
                 g1.metric("Marcados (Casa)", f"{df_home['FTHG'].mean():.2f}")
@@ -525,7 +548,6 @@ if not df_recent.empty:
                 g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
                 g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
                 
-                # Linha 3: Percentuais de Over
                 st.subheader("📈 Tendências de Over")
                 over05ht = (df_all['Over05HT'] == 1).mean()
                 over15ft = (df_all['Over15FT'] == 1).mean()
@@ -540,7 +562,6 @@ if not df_recent.empty:
                 
                 st.divider()
                 
-                # Linha 4: Cantos
                 st.subheader("🚩 Escanteios (Média)")
                 c1, c2 = st.columns(2)
                 c1.metric("A Favor (Casa)", f"{df_home['HC'].mean():.1f}")
@@ -548,20 +569,14 @@ if not df_recent.empty:
                 
                 st.divider()
                 
-                # Linha 5: Últimos 10 Jogos (Estilizado)
                 st.subheader("🗓️ Últimos 10 Jogos")
                 last_10 = df_all.head(10)[['Date', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HomeWin', 'AwayWin']].copy()
                 
-                # Função de Estilo
                 def color_results(row):
                     color = ''
-                    # Se time selecionado ganhou em casa
                     if row['HomeTeam'] == sel_time and row['HomeWin'] == 1: color = 'background-color: #2ea043; color: white'
-                    # Se time selecionado ganhou fora
                     elif row['AwayTeam'] == sel_time and row['AwayWin'] == 1: color = 'background-color: #2ea043; color: white'
-                    # Empate
                     elif row['FTHG'] == row['FTAG']: color = 'background-color: #6e7681; color: white'
-                    # Derrota
                     else: color = 'background-color: #da3633; color: white'
                     return [color] * len(row)
 
