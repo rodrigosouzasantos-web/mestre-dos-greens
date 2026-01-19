@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V60",
+    page_title="Mestre dos Greens PRO - V60.1",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -69,7 +69,7 @@ st.markdown("""
         border: 2px solid #f1c40f;
         border-radius: 10px;
         padding: 20px;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
     }
     .ticket-header { color: #f1c40f; font-size: 22px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
     .ticket-item { font-size: 16px; color: #e6edf3; margin-bottom: 8px; border-left: 3px solid #2ea043; padding-left: 10px; }
@@ -325,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V60")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V60.1")
 
 df_recent, df_today, full_df = load_data()
 
@@ -443,7 +443,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS
+    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA + TELEGRAM)
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
@@ -480,6 +480,13 @@ if not df_recent.empty:
                         odd_total = pair[0]['Odd_Est'] * pair[1]['Odd_Est']
                         if 1.45 <= odd_total <= 1.60:
                             st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {pair[0]['Jogo']} <br> 🎯 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {pair[1]['Jogo']} <br> 🎯 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
+                            
+                            # BOTÃO TELEGRAM DUPLA
+                            msg_dupla = f"🔥 *DUPLA SEGURA MESTRE DOS GREENS* 🔥\n\n🎯 *Odd Total:* ~{odd_total:.2f}\n\n1️⃣ *{pair[0]['Jogo']}*\n📍 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})\n\n2️⃣ *{pair[1]['Jogo']}*\n📍 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})\n\n🍀 *Gestão de Banca: 1%*"
+                            if st.button("📤 Enviar Dupla para Telegram", key="btn_dupla"):
+                                if enviar_telegram(msg_dupla): st.success("Enviado!")
+                                else: st.error("Erro.")
+                            
                             found_dupla = True
                             break 
                     if not found_dupla: st.warning("Nenhuma combinação perfeita para Dupla (@1.50) encontrada hoje.")
@@ -489,11 +496,18 @@ if not df_recent.empty:
                         odd_total = trio[0]['Odd_Est'] * trio[1]['Odd_Est'] * trio[2]['Odd_Est']
                         if 1.65 <= odd_total <= 1.85:
                             st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {trio[0]['Jogo']} <br> 🎯 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[1]['Jogo']} <br> 🎯 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[2]['Jogo']} <br> 🎯 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
+                            
+                            # BOTÃO TELEGRAM TRIPLA
+                            msg_tripla = f"🚀 *TRIPLA DE VALOR MESTRE DOS GREENS* 🚀\n\n🎯 *Odd Total:* ~{odd_total:.2f}\n\n1️⃣ *{trio[0]['Jogo']}*\n📍 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})\n\n2️⃣ *{trio[1]['Jogo']}*\n📍 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})\n\n3️⃣ *{trio[2]['Jogo']}*\n📍 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})\n\n🍀 *Gestão de Banca: 0.5%*"
+                            if st.button("📤 Enviar Tripla para Telegram", key="btn_tripla"):
+                                if enviar_telegram(msg_tripla): st.success("Enviado!")
+                                else: st.error("Erro.")
+                            
                             found_tripla = True
                             break
                     if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
 
-    # 4. ANALISADOR DE TIMES (ATUALIZADO V60)
+    # 4. ANALISADOR DE TIMES (ATUALIZADO V60.1 - Média Geral Cantos)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -559,9 +573,17 @@ if not df_recent.empty:
                 
                 st.divider()
                 st.subheader("🚩 Escanteios (Média)")
-                c1, c2, c3, c4 = st.columns(4)
-                # HC = Cantos do Mandante (A favor se Casa, Contra se Fora)
-                # AC = Cantos do Visitante (Contra se Casa, A favor se Fora)
+                
+                # CÁLCULO MÉDIA GERAL (PRÓ)
+                # Se joga em casa (HomeTeam == sel_time) -> HC
+                # Se joga fora (AwayTeam == sel_time) -> AC
+                corners_pro = []
+                if not df_home.empty: corners_pro.extend(df_home['HC'].tolist())
+                if not df_away.empty: corners_pro.extend(df_away['AC'].tolist())
+                media_geral_cantos = sum(corners_pro) / len(corners_pro) if corners_pro else 0
+                
+                c0, c1, c2, c3, c4 = st.columns(5)
+                c0.metric("Média Geral (Pró)", f"{media_geral_cantos:.1f}")
                 c1.metric("A Favor (Casa)", f"{df_home['HC'].mean():.1f}")
                 c2.metric("Cedidos (Casa)", f"{df_home['AC'].mean():.1f}")
                 c3.metric("A Favor (Fora)", f"{df_away['AC'].mean():.1f}")
