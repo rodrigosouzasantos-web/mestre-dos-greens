@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V60.1",
+    page_title="Mestre dos Greens PRO - V61 (Visual)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -325,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V60.1")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V61")
 
 df_recent, df_today, full_df = load_data()
 
@@ -382,11 +382,28 @@ if not df_recent.empty:
                                 st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
                     with col_probs:
                         st.subheader("📈 Probabilidades Reais")
-                        st.success(f"⚡ Over 0.5 HT: {prob_over05_ht:.1f}%")
-                        st.success(f"🛡️ Over 1.5 FT: {probs['Over15']*100:.1f}%")
-                        st.success(f"🔥 Over 2.5 FT: {probs['Over25']*100:.1f}%")
-                        st.info(f"🧱 Under 3.5 FT: {probs['Under35']*100:.1f}%")
-                        st.warning(f"🤝 BTTS: {probs['BTTS']*100:.1f}%")
+                        
+                        # FUNÇÃO VISUAL PARA DEFINIR COR/EMOJI
+                        def visual_metric(label, value, threshold_good, threshold_bad=None):
+                            # Se value > good -> VERDE
+                            # Se value < bad (ou default) -> VERMELHO
+                            if threshold_bad is None: threshold_bad = threshold_good
+                            
+                            if value >= threshold_good:
+                                st.success(f"✅ {label}: {value:.1f}%")
+                            else:
+                                st.error(f"🔻 {label}: {value:.1f}%")
+
+                        visual_metric("Over 0.5 HT", prob_over05_ht, 70)
+                        visual_metric("Over 1.5 FT", probs['Over15']*100, 75)
+                        visual_metric("Over 2.5 FT", probs['Over25']*100, 55)
+                        
+                        # BTTS (Ambas Marcam)
+                        visual_metric("BTTS", probs['BTTS']*100, 55)
+                        
+                        # Under 3.5 (Inverso: Quanto maior a prob, melhor)
+                        visual_metric("Under 3.5 FT", probs['Under35']*100, 70)
+
                         st.markdown("---")
                         st.write(f"🏠 **{home_sel}**: {probs['HomeWin']*100:.1f}%")
                         st.write(f"✈️ **{away_sel}**: {probs['AwayWin']*100:.1f}%")
@@ -443,7 +460,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA + TELEGRAM)
+    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
