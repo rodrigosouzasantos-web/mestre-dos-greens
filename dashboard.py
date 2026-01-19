@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V59",
+    page_title="Mestre dos Greens PRO - V60",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -325,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V59")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V60")
 
 df_recent, df_today, full_df = load_data()
 
@@ -443,7 +443,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
+    # 3. BILHETES PRONTOS
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
@@ -493,18 +493,18 @@ if not df_recent.empty:
                             break
                     if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
 
-    # 4. ANALISADOR DE TIMES (ATUALIZADO V59.0 - TEAM SPECIFIC + BTTS)
+    # 4. ANALISADOR DE TIMES (ATUALIZADO V60)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         
         if sel_time:
-            # Preparação dos dados Específicos
+            # Filtros Específicos
             df_home = df_recent[df_recent['HomeTeam'] == sel_time].copy()
             df_away = df_recent[df_recent['AwayTeam'] == sel_time].copy()
             
-            # Cálculo de Gols do Time (para não confundir com Over da Partida)
+            # Gols Específicos
             df_home['TeamGoals_FT'] = df_home['FTHG']
             df_home['TeamGoals_HT'] = df_home['HTHG']
             df_away['TeamGoals_FT'] = df_away['FTAG']
@@ -530,24 +530,11 @@ if not df_recent.empty:
                 
                 c1, c2 = st.columns(2)
                 with c1:
-                    st.markdown(f"""
-                    <div class="strength-card">
-                        <div class="strength-title">⚔️ Força de Ataque</div>
-                        <div class="strength-value" style="color: {color_att}">{att_strength:.0f}%</div>
-                        <div class="strength-context">Time: {team_scored_avg:.2f} vs Liga: {avg_goals_league:.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="strength-card"><div class="strength-title">⚔️ Força de Ataque</div><div class="strength-value" style="color: {color_att}">{att_strength:.0f}%</div><div class="strength-context">Time: {team_scored_avg:.2f} vs Liga: {avg_goals_league:.2f}</div></div>""", unsafe_allow_html=True)
                 with c2:
-                    st.markdown(f"""
-                    <div class="strength-card">
-                        <div class="strength-title">🛡️ Força Defensiva</div>
-                        <div class="strength-value" style="color: {color_def}">{def_strength:.0f}%</div>
-                        <div class="strength-context">Time: {team_conceded_avg:.2f} vs Liga: {avg_goals_league:.2f}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="strength-card"><div class="strength-title">🛡️ Força Defensiva</div><div class="strength-value" style="color: {color_def}">{def_strength:.0f}%</div><div class="strength-context">Time: {team_conceded_avg:.2f} vs Liga: {avg_goals_league:.2f}</div></div>""", unsafe_allow_html=True)
                 
                 st.divider()
-                
                 st.subheader("⚽ Gols (Médias)")
                 g1, g2, g3, g4 = st.columns(4)
                 g1.metric("Marcados (Casa)", f"{df_home['FTHG'].mean():.2f}")
@@ -555,42 +542,34 @@ if not df_recent.empty:
                 g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
                 g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
                 
-                # CÁLCULOS ESPECÍFICOS DO TIME (SEM GOlS DO ADVERSÁRIO)
                 st.subheader("📈 Tendências de Over (Gols do Time)")
-                
-                # Time marcou no HT? (> 0)
                 team_score_ht = (df_all['TeamGoals_HT'] > 0).mean()
-                # Time marcou > 1.5 FT? (2 ou mais)
                 team_score_15 = (df_all['TeamGoals_FT'] > 1.5).mean()
-                # Time marcou > 2.5 FT? (3 ou mais)
                 team_score_25 = (df_all['TeamGoals_FT'] > 2.5).mean()
-                # BTTS
                 team_btts = (df_all['BTTS'] == 1).mean()
                 
                 st.write(f"Time Marcou 0.5 HT ({team_score_ht*100:.0f}%)")
                 st.progress(float(team_score_ht))
-                
                 st.write(f"Time Marcou 1.5 FT ({team_score_15*100:.0f}%)")
                 st.progress(float(team_score_15))
-                
                 st.write(f"Time Marcou 2.5 FT ({team_score_25*100:.0f}%)")
                 st.progress(float(team_score_25))
-                
                 st.write(f"Ambas Marcam (BTTS) ({team_btts*100:.0f}%)")
                 st.progress(float(team_btts))
                 
                 st.divider()
-                
                 st.subheader("🚩 Escanteios (Média)")
-                c1, c2 = st.columns(2)
+                c1, c2, c3, c4 = st.columns(4)
+                # HC = Cantos do Mandante (A favor se Casa, Contra se Fora)
+                # AC = Cantos do Visitante (Contra se Casa, A favor se Fora)
                 c1.metric("A Favor (Casa)", f"{df_home['HC'].mean():.1f}")
-                c2.metric("A Favor (Fora)", f"{df_away['AC'].mean():.1f}")
+                c2.metric("Cedidos (Casa)", f"{df_home['AC'].mean():.1f}")
+                c3.metric("A Favor (Fora)", f"{df_away['AC'].mean():.1f}")
+                c4.metric("Cedidos (Fora)", f"{df_away['HC'].mean():.1f}")
                 
                 st.divider()
-                
                 st.subheader("🗓️ Últimos 10 Jogos")
                 last_10 = df_all.head(10)[['Date', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HomeWin', 'AwayWin']].copy()
-                
                 def color_results(row):
                     color = ''
                     if row['HomeTeam'] == sel_time and row['HomeWin'] == 1: color = 'background-color: #2ea043; color: white'
@@ -598,7 +577,6 @@ if not df_recent.empty:
                     elif row['FTHG'] == row['FTAG']: color = 'background-color: #6e7681; color: white'
                     else: color = 'background-color: #da3633; color: white'
                     return [color] * len(row)
-
                 st.dataframe(last_10.style.apply(color_results, axis=1), use_container_width=True)
 
     # 5. RAIO-X LIGAS
