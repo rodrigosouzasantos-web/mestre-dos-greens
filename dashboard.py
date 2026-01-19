@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V62",
+    page_title="Mestre dos Greens PRO - V62.1",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -325,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V62")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V62.1")
 
 df_recent, df_today, full_df = load_data()
 
@@ -383,7 +383,7 @@ if not df_recent.empty:
                     with col_probs:
                         st.subheader("📈 Probabilidades Reais")
                         
-                        # FUNÇÃO VISUAL AJUSTADA (V62)
+                        # FUNÇÃO VISUAL AJUSTADA (V62.1)
                         def visual_metric(label, value, threshold_good, threshold_bad=None):
                             if threshold_bad is None: threshold_bad = threshold_good
                             if value >= threshold_good:
@@ -391,12 +391,13 @@ if not df_recent.empty:
                             else:
                                 st.error(f"🔻 {label}: {value:.1f}%")
 
-                        # NOVOS THRESHOLDS (RIGOROSOS)
-                        visual_metric("Over 0.5 HT", prob_over05_ht, 80) # SUBIU PARA 80%
-                        visual_metric("Over 1.5 FT", probs['Over15']*100, 80) # SUBIU PARA 80%
-                        visual_metric("Over 2.5 FT", probs['Over25']*100, 60) # SUBIU PARA 60%
-                        visual_metric("BTTS", probs['BTTS']*100, 60) # SUBIU PARA 60%
-                        visual_metric("Under 3.5 FT", probs['Under35']*100, 70) # MANTIDO
+                        # NOVOS THRESHOLDS (RIGOROSOS + UNDER 3.5 CALIBRADO)
+                        visual_metric("Over 0.5 HT", prob_over05_ht, 80)
+                        visual_metric("Over 1.5 FT", probs['Over15']*100, 80)
+                        visual_metric("Over 2.5 FT", probs['Over25']*100, 60)
+                        visual_metric("BTTS", probs['BTTS']*100, 60)
+                        # CALIBRAGEM UNDER 3.5 = 80% (Verde se >= 80)
+                        visual_metric("Under 3.5 FT", probs['Under35']*100, 80)
 
                         st.markdown("---")
                         st.write(f"🏠 **{home_sel}**: {probs['HomeWin']*100:.1f}%")
@@ -454,7 +455,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS
+    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
