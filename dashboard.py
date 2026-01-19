@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V61 (Visual)",
+    page_title="Mestre dos Greens PRO - V62",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -325,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V61")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V62")
 
 df_recent, df_today, full_df = load_data()
 
@@ -383,26 +383,20 @@ if not df_recent.empty:
                     with col_probs:
                         st.subheader("📈 Probabilidades Reais")
                         
-                        # FUNÇÃO VISUAL PARA DEFINIR COR/EMOJI
+                        # FUNÇÃO VISUAL AJUSTADA (V62)
                         def visual_metric(label, value, threshold_good, threshold_bad=None):
-                            # Se value > good -> VERDE
-                            # Se value < bad (ou default) -> VERMELHO
                             if threshold_bad is None: threshold_bad = threshold_good
-                            
                             if value >= threshold_good:
                                 st.success(f"✅ {label}: {value:.1f}%")
                             else:
                                 st.error(f"🔻 {label}: {value:.1f}%")
 
-                        visual_metric("Over 0.5 HT", prob_over05_ht, 70)
-                        visual_metric("Over 1.5 FT", probs['Over15']*100, 75)
-                        visual_metric("Over 2.5 FT", probs['Over25']*100, 55)
-                        
-                        # BTTS (Ambas Marcam)
-                        visual_metric("BTTS", probs['BTTS']*100, 55)
-                        
-                        # Under 3.5 (Inverso: Quanto maior a prob, melhor)
-                        visual_metric("Under 3.5 FT", probs['Under35']*100, 70)
+                        # NOVOS THRESHOLDS (RIGOROSOS)
+                        visual_metric("Over 0.5 HT", prob_over05_ht, 80) # SUBIU PARA 80%
+                        visual_metric("Over 1.5 FT", probs['Over15']*100, 80) # SUBIU PARA 80%
+                        visual_metric("Over 2.5 FT", probs['Over25']*100, 60) # SUBIU PARA 60%
+                        visual_metric("BTTS", probs['BTTS']*100, 60) # SUBIU PARA 60%
+                        visual_metric("Under 3.5 FT", probs['Under35']*100, 70) # MANTIDO
 
                         st.markdown("---")
                         st.write(f"🏠 **{home_sel}**: {probs['HomeWin']*100:.1f}%")
@@ -460,7 +454,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
+    # 3. BILHETES PRONTOS
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
@@ -524,18 +518,16 @@ if not df_recent.empty:
                             break
                     if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
 
-    # 4. ANALISADOR DE TIMES (ATUALIZADO V60.1 - Média Geral Cantos)
+    # 4. ANALISADOR DE TIMES
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         
         if sel_time:
-            # Filtros Específicos
             df_home = df_recent[df_recent['HomeTeam'] == sel_time].copy()
             df_away = df_recent[df_recent['AwayTeam'] == sel_time].copy()
             
-            # Gols Específicos
             df_home['TeamGoals_FT'] = df_home['FTHG']
             df_home['TeamGoals_HT'] = df_home['HTHG']
             df_away['TeamGoals_FT'] = df_away['FTAG']
@@ -591,9 +583,6 @@ if not df_recent.empty:
                 st.divider()
                 st.subheader("🚩 Escanteios (Média)")
                 
-                # CÁLCULO MÉDIA GERAL (PRÓ)
-                # Se joga em casa (HomeTeam == sel_time) -> HC
-                # Se joga fora (AwayTeam == sel_time) -> AC
                 corners_pro = []
                 if not df_home.empty: corners_pro.extend(df_home['HC'].tolist())
                 if not df_away.empty: corners_pro.extend(df_away['AC'].tolist())
