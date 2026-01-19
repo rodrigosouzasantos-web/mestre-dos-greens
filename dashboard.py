@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V58.1",
+    page_title="Mestre dos Greens PRO - V59",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -325,7 +325,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V58.1")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V59")
 
 df_recent, df_today, full_df = load_data()
 
@@ -443,7 +443,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS
+    # 3. BILHETES PRONTOS (LÓGICA APERFEIÇOADA)
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
         if df_today.empty:
@@ -493,15 +493,23 @@ if not df_recent.empty:
                             break
                     if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
 
-    # 4. ANALISADOR DE TIMES (ATUALIZADO V58.1)
+    # 4. ANALISADOR DE TIMES (ATUALIZADO V59.0 - TEAM SPECIFIC + BTTS)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         
         if sel_time:
-            df_home = df_recent[df_recent['HomeTeam'] == sel_time]
-            df_away = df_recent[df_recent['AwayTeam'] == sel_time]
+            # Preparação dos dados Específicos
+            df_home = df_recent[df_recent['HomeTeam'] == sel_time].copy()
+            df_away = df_recent[df_recent['AwayTeam'] == sel_time].copy()
+            
+            # Cálculo de Gols do Time (para não confundir com Over da Partida)
+            df_home['TeamGoals_FT'] = df_home['FTHG']
+            df_home['TeamGoals_HT'] = df_home['HTHG']
+            df_away['TeamGoals_FT'] = df_away['FTAG']
+            df_away['TeamGoals_HT'] = df_away['HTAG']
+            
             df_all = pd.concat([df_home, df_away]).sort_values('Date', ascending=False)
             
             if not df_all.empty:
@@ -517,7 +525,6 @@ if not df_recent.empty:
                 
                 st.markdown(f"### 📊 Raio-X: {sel_time} ({main_league})")
                 
-                # Cores
                 color_att = "#2ea043" if team_scored_avg > avg_goals_league else "#da3633"
                 color_def = "#2ea043" if team_conceded_avg < avg_goals_league else "#da3633"
                 
@@ -548,17 +555,29 @@ if not df_recent.empty:
                 g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
                 g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
                 
-                st.subheader("📈 Tendências de Over")
-                over05ht = (df_all['Over05HT'] == 1).mean()
-                over15ft = (df_all['Over15FT'] == 1).mean()
-                over25ft = (df_all['Over25FT'] == 1).mean()
+                # CÁLCULOS ESPECÍFICOS DO TIME (SEM GOlS DO ADVERSÁRIO)
+                st.subheader("📈 Tendências de Over (Gols do Time)")
                 
-                st.write(f"Over 0.5 HT ({over05ht*100:.0f}%)")
-                st.progress(float(over05ht))
-                st.write(f"Over 1.5 FT ({over15ft*100:.0f}%)")
-                st.progress(float(over15ft))
-                st.write(f"Over 2.5 FT ({over25ft*100:.0f}%)")
-                st.progress(float(over25ft))
+                # Time marcou no HT? (> 0)
+                team_score_ht = (df_all['TeamGoals_HT'] > 0).mean()
+                # Time marcou > 1.5 FT? (2 ou mais)
+                team_score_15 = (df_all['TeamGoals_FT'] > 1.5).mean()
+                # Time marcou > 2.5 FT? (3 ou mais)
+                team_score_25 = (df_all['TeamGoals_FT'] > 2.5).mean()
+                # BTTS
+                team_btts = (df_all['BTTS'] == 1).mean()
+                
+                st.write(f"Time Marcou 0.5 HT ({team_score_ht*100:.0f}%)")
+                st.progress(float(team_score_ht))
+                
+                st.write(f"Time Marcou 1.5 FT ({team_score_15*100:.0f}%)")
+                st.progress(float(team_score_15))
+                
+                st.write(f"Time Marcou 2.5 FT ({team_score_25*100:.0f}%)")
+                st.progress(float(team_score_25))
+                
+                st.write(f"Ambas Marcam (BTTS) ({team_btts*100:.0f}%)")
+                st.progress(float(team_btts))
                 
                 st.divider()
                 
