@@ -18,7 +18,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V65 (Standings)",
+    page_title="Mestre dos Greens PRO - V65.0 Full",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -87,17 +87,6 @@ st.markdown("""
     .strength-title { color: #8b949e; font-size: 14px; margin-bottom: 5px; }
     .strength-value { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
     .strength-context { font-size: 12px; color: #cfcfcf; }
-    
-    /* Badge Must Win */
-    .badge-must-win-title {
-        background-color: #2ea043; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px;
-    }
-    .badge-must-win-relegation {
-        background-color: #da3633; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px;
-    }
-    .rank-badge {
-        font-weight: bold; color: #f1c40f;
-    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -260,10 +249,6 @@ def load_data():
 # ==============================================================================
 def get_team_info(team_name, df_stats):
     if df_stats.empty: return None
-    # Procura parcial ou exata. Ajuste conforme colunas reais do CSV.
-    # Assumindo colunas: 'Team', 'League', 'Rank', 'Points', 'Matches'
-    # Se não tiver nomes exatos, teremos que adaptar. Vou usar nomes genéricos comuns.
-    # Ajuste para garantir match
     res = df_stats[df_stats['Team'] == team_name]
     if res.empty: return None
     return res.iloc[0]
@@ -459,7 +444,7 @@ if not df_recent.empty:
         else:
             st.warning("Base de dados de classificação não carregada ou vazia.")
 
-    # 2. SIMULADOR MANUAL (MANTIDO)
+    # 2. SIMULADOR MANUAL (CÓDIGO INTEGRAL RESTAURADO)
     elif menu == "⚔️ Simulador Manual":
         st.header("⚔️ Simulador Manual")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -478,21 +463,153 @@ if not df_recent.empty:
                     matriz, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
                     prob_over05_ht = (1 - (poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht))) * 100
                     exibir_matriz_visual(matriz, team_a, team_b)
-                    # ... (restante do código igual) ...
+                    
+                    c_btn1, c_btn2 = st.columns(2)
+                    with c_btn1:
+                        if st.button("📤 Enviar para Telegram", key="btn_send_sim"):
+                            msg = f"🔥 *SIMULAÇÃO* {team_a} x {team_b}\n📊 Over 2.5: {probs['Over25']*100:.1f}%"
+                            if enviar_telegram(msg): st.success("Enviado!")
+                    with c_btn2:
+                        if st.button("📋 Ver Top Placares", key="btn_sim"):
+                            for score in top_scores:
+                                odd_j = get_odd_justa(score['Prob'])
+                                st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
+                    st.divider()
+                    st.subheader("📊 Probabilidades de Resultado (1x2)")
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("🏠 Vitória Casa", f"{probs['HomeWin']*100:.1f}%")
+                    m2.metric("⚖️ Empate", f"{probs['Draw']*100:.1f}%")
+                    m3.metric("✈️ Vitória Visitante", f"{probs['AwayWin']*100:.1f}%")
+                    st.divider()
+                    st.subheader("⚽ Probabilidades de Gols")
+                    g1, g2, g3, g4 = st.columns(4)
+                    g1.metric("⚡ Over 0.5 HT", f"{prob_over05_ht:.1f}%")
+                    g2.metric("🛡️ Over 1.5 FT", f"{probs['Over15']*100:.1f}%")
+                    g3.metric("🔥 Over 2.5 FT", f"{probs['Over25']*100:.1f}%")
+                    g4.metric("🧱 Under 3.5 FT", f"{probs['Under35']*100:.1f}%")
+                    st.divider()
+                    st.subheader("🚩 Probabilidades de Escanteios")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
+                    c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 3. BILHETES PRONTOS (MANTIDO)
+    # 3. BILHETES PRONTOS (CÓDIGO INTEGRAL RESTAURADO)
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança de Green)")
-        if df_today.empty: st.info("Nenhum jogo disponível hoje.")
+        if df_today.empty:
+            st.info("Nenhum jogo disponível hoje para gerar bilhetes.")
         else:
             if st.button("🔄 Gerar Novos Bilhetes"):
-                # ... (lógica anterior mantida) ...
-                st.info("Funcionalidade de bilhetes (código V64) aqui.")
+                with st.spinner("Analisando todos os jogos e calculando probabilidades..."):
+                    all_candidates = [] 
+                    for i, row in df_today.iterrows():
+                        home = row['HomeTeam']
+                        away = row['AwayTeam']
+                        try:
+                            league = df_recent[df_recent['HomeTeam'] == home]['League_Custom'].mode()[0]
+                            xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
+                            if xg_h is None: continue
+                            _, probs_dict, _ = gerar_matriz_poisson(xg_h, xg_a)
+                            
+                            if probs_dict['Over15'] > 0.75:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Over 1.5 Gols', 'Odd_Est': 1/probs_dict['Over15']})
+                            if probs_dict['Under35'] > 0.80:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 3.5 Gols', 'Odd_Est': 1/probs_dict['Under35']})
+                            if probs_dict['Under35'] > 0.90: 
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 4.5 Gols', 'Odd_Est': 1.08})
+                            prob_1x = probs_dict['HomeWin'] + probs_dict['Draw']
+                            if prob_1x > 0.80:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Casa ou Empate (1X)', 'Odd_Est': 1/prob_1x})
+                            prob_x2 = probs_dict['AwayWin'] + probs_dict['Draw']
+                            if prob_x2 > 0.80:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Fora ou Empate (X2)', 'Odd_Est': 1/prob_x2})
+                        except: continue
+                    
+                    found_dupla = False
+                    for pair in itertools.combinations(all_candidates, 2):
+                        odd_total = pair[0]['Odd_Est'] * pair[1]['Odd_Est']
+                        if 1.45 <= odd_total <= 1.60:
+                            st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {pair[0]['Jogo']} <br> 🎯 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {pair[1]['Jogo']} <br> 🎯 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
+                            
+                            # BOTÃO TELEGRAM DUPLA
+                            msg_dupla = f"🔥 *DUPLA SEGURA MESTRE DOS GREENS* 🔥\n\n🎯 *Odd Total:* ~{odd_total:.2f}\n\n1️⃣ *{pair[0]['Jogo']}*\n📍 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})\n\n2️⃣ *{pair[1]['Jogo']}*\n📍 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})\n\n🍀 *Gestão de Banca: 1%*"
+                            if st.button("📤 Enviar Dupla para Telegram", key="btn_dupla"):
+                                if enviar_telegram(msg_dupla): st.success("Enviado!")
+                                else: st.error("Erro.")
+                            
+                            found_dupla = True
+                            break 
+                    if not found_dupla: st.warning("Nenhuma combinação perfeita para Dupla (@1.50) encontrada hoje.")
 
-    # 4. ALAVANCAGEM (MANTIDO)
+                    found_tripla = False
+                    for trio in itertools.combinations(all_candidates, 3):
+                        odd_total = trio[0]['Odd_Est'] * trio[1]['Odd_Est'] * trio[2]['Odd_Est']
+                        if 1.65 <= odd_total <= 1.85:
+                            st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {trio[0]['Jogo']} <br> 🎯 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[1]['Jogo']} <br> 🎯 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[2]['Jogo']} <br> 🎯 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
+                            
+                            # BOTÃO TELEGRAM TRIPLA
+                            msg_tripla = f"🚀 *TRIPLA DE VALOR MESTRE DOS GREENS* 🚀\n\n🎯 *Odd Total:* ~{odd_total:.2f}\n\n1️⃣ *{trio[0]['Jogo']}*\n📍 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})\n\n2️⃣ *{trio[1]['Jogo']}*\n📍 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})\n\n3️⃣ *{trio[2]['Jogo']}*\n📍 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})\n\n🍀 *Gestão de Banca: 0.5%*"
+                            if st.button("📤 Enviar Tripla para Telegram", key="btn_tripla"):
+                                if enviar_telegram(msg_tripla): st.success("Enviado!")
+                                else: st.error("Erro.")
+                            
+                            found_tripla = True
+                            break
+                    if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
+
+    # 4. ALAVANCAGEM (CÓDIGO INTEGRAL RESTAURADO V64)
     elif menu == "🚀 Alavancagem":
         st.header("🚀 Alavancagem (Odds Altas & Zebras)")
-        st.info("Aguardando seus critérios específicos para refinar esta aba.")
+        if df_today.empty:
+            st.info("Aguardando jogos...")
+        else:
+            if st.button("🔄 Buscar Oportunidades"):
+                with st.spinner("Caçando zebras e placares bomba..."):
+                    found_zebra = False
+                    for i, row in df_today.iterrows():
+                        home, away = row['HomeTeam'], row['AwayTeam']
+                        try:
+                            league = df_recent[df_recent['HomeTeam'] == home]['League_Custom'].mode()[0]
+                            xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
+                            if xg_h is None: continue
+                            _, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
+                            
+                            # ESTRATÉGIA 1: ZEBRA (Away com > 30% chance e Home < 50%)
+                            if probs['AwayWin'] > 0.30 and probs['HomeWin'] < 0.50:
+                                odd_zebra = 1/probs['AwayWin']
+                                st.markdown(f"""
+                                <div class="ticket-card" style="border-color: #e74c3c;">
+                                    <div class="ticket-header" style="color: #e74c3c;">🦓 ALERTA DE ZEBRA: {away}</div>
+                                    <div class="ticket-item">⚽ {home} x {away}</div>
+                                    <div class="ticket-item">📊 Chance de Vitória: {probs['AwayWin']*100:.1f}% (Odd Justa: @{odd_zebra:.2f})</div>
+                                    <div class="ticket-item">📉 Oponente Instável (Casa): {probs['HomeWin']*100:.1f}%</div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                found_zebra = True
+                                if st.button(f"📤 Enviar Zebra {away}", key=f"zebra_{i}"):
+                                    enviar_telegram(f"🦓 *ALERTA DE ZEBRA* 🦓\n\n⚽ {home} x {away}\n🔥 {away} para Vencer\n📊 Prob: {probs['AwayWin']*100:.1f}%")
+
+                            # ESTRATÉGIA 2: PLACAR OUSADO (Top 1 score > 2.5 gols)
+                            # Pega o placar mais provável que não seja 1x0, 0x1 ou 1x1
+                            for score in top_scores:
+                                h_s, a_s = map(int, score['Placar'].split('x'))
+                                if (h_s + a_s) >= 3: # Placar com gols (ex: 2x1, 3x1, 2x2)
+                                    odd_placar = get_odd_justa(score['Prob'])
+                                    if odd_placar > 6.0: # Só mostra se pagar bem
+                                        st.markdown(f"""
+                                        <div class="ticket-card" style="border-color: #9b59b6;">
+                                            <div class="ticket-header" style="color: #9b59b6;">🎯 PLACAR BOMBA: {score['Placar']}</div>
+                                            <div class="ticket-item">⚽ {home} x {away}</div>
+                                            <div class="ticket-item">💎 Probabilidade: {score['Prob']:.1f}%</div>
+                                            <div class="ticket-item">💰 Odd Estimada: @{odd_placar:.2f}</div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                        if st.button(f"📤 Enviar Placar {home}", key=f"placar_{i}"):
+                                            enviar_telegram(f"🎯 *PLACAR OUSADO* 🎯\n\n⚽ {home} x {away}\n💎 Placar: {score['Placar']}\n💰 Odd Est: @{odd_placar:.2f}")
+                                        break # Mostra só o melhor placar ousado do jogo
+                        except: continue
+                    
+                    if not found_zebra: st.info("Nenhuma oportunidade clara de Zebra hoje.")
 
     # 5. ANALISADOR DE TIMES (ENRIQUECIDO V65)
     elif menu == "🔎 Analisador de Times":
@@ -528,13 +645,78 @@ if not df_recent.empty:
                 with c1: st.markdown(f"""<div class="strength-card"><div class="strength-title">⚔️ Força de Ataque</div><div class="strength-value" style="color: {color_att}">{att_strength:.0f}%</div><div class="strength-context">Time: {team_scored_avg:.2f} vs Liga: {avg_goals_league:.2f}</div></div>""", unsafe_allow_html=True)
                 with c2: st.markdown(f"""<div class="strength-card"><div class="strength-title">🛡️ Força Defensiva</div><div class="strength-value" style="color: {color_def}">{def_strength:.0f}%</div><div class="strength-context">Time: {team_conceded_avg:.2f} vs Liga: {avg_goals_league:.2f}</div></div>""", unsafe_allow_html=True)
                 
-                # ... (restante das métricas mantido) ...
+                st.divider()
+                st.subheader("⚽ Gols (Médias)")
+                g1, g2, g3, g4 = st.columns(4)
+                g1.metric("Marcados (Casa)", f"{df_home['FTHG'].mean():.2f}")
+                g2.metric("Marcados (Fora)", f"{df_away['FTAG'].mean():.2f}")
+                g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
+                g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
+                
+                st.subheader("📈 Tendências de Over (Gols do Time)")
+                team_score_ht = (df_all['TeamGoals_HT'] > 0).mean()
+                team_score_15 = (df_all['TeamGoals_FT'] > 1.5).mean()
+                team_score_25 = (df_all['TeamGoals_FT'] > 2.5).mean()
+                team_btts = (df_all['BTTS'] == 1).mean()
+                st.write(f"Time Marcou 0.5 HT ({team_score_ht*100:.0f}%)"); st.progress(float(team_score_ht))
+                st.write(f"Time Marcou 1.5 FT ({team_score_15*100:.0f}%)"); st.progress(float(team_score_15))
+                st.write(f"Time Marcou 2.5 FT ({team_score_25*100:.0f}%)"); st.progress(float(team_score_25))
+                st.write(f"Ambas Marcam (BTTS) ({team_btts*100:.0f}%)"); st.progress(float(team_btts))
+                
+                st.divider()
+                st.subheader("🚩 Escanteios (Média)")
+                corners_pro = []; 
+                if not df_home.empty: corners_pro.extend(df_home['HC'].tolist())
+                if not df_away.empty: corners_pro.extend(df_away['AC'].tolist())
+                media_geral_cantos = sum(corners_pro) / len(corners_pro) if corners_pro else 0
+                c0, c1, c2, c3, c4 = st.columns(5)
+                c0.metric("Média Geral (Pró)", f"{media_geral_cantos:.1f}")
+                c1.metric("A Favor (Casa)", f"{df_home['HC'].mean():.1f}")
+                c2.metric("Cedidos (Casa)", f"{df_home['AC'].mean():.1f}")
+                c3.metric("A Favor (Fora)", f"{df_away['AC'].mean():.1f}")
+                c4.metric("Cedidos (Fora)", f"{df_away['HC'].mean():.1f}")
+                
                 st.divider()
                 st.subheader("🗓️ Últimos 10 Jogos")
-                st.dataframe(df_all.head(10)[['Date','HomeTeam','FTHG','FTAG','AwayTeam']], use_container_width=True)
+                last_10 = df_all.head(10)[['Date', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HomeWin', 'AwayWin']].copy()
+                def color_results(row):
+                    color = ''
+                    if row['HomeTeam'] == sel_time and row['HomeWin'] == 1: color = 'background-color: #2ea043; color: white'
+                    elif row['AwayTeam'] == sel_time and row['AwayWin'] == 1: color = 'background-color: #2ea043; color: white'
+                    elif row['FTHG'] == row['FTAG']: color = 'background-color: #6e7681; color: white'
+                    else: color = 'background-color: #da3633; color: white'
+                    return [color] * len(row)
+                st.dataframe(last_10.style.apply(color_results, axis=1), use_container_width=True)
 
-    # 6. RAIO-X LIGAS
+    # 6. RAIO-X LIGAS (CÓDIGO INTEGRAL RESTAURADO)
     elif menu == "🌍 Raio-X Ligas":
-        st.info("Raio-X Ligas (Código V64 mantido)")
+        st.header("🌎 Inteligência Temporal de Ligas (Ano a Ano)")
+        all_leagues = sorted(df_recent['League_Custom'].unique())
+        options = ["Todas as Ligas"] + all_leagues
+        selected_leagues = st.multiselect("Selecione:", options, default=[])
+        if not selected_leagues or "Todas as Ligas" in selected_leagues:
+            df_filtered = df_recent
+        else:
+            df_filtered = df_recent[df_recent['League_Custom'].isin(selected_leagues)]
+        df_filtered['Year'] = df_filtered['Date'].dt.year
+        
+        stats_ano = df_filtered.groupby(['League_Custom', 'Year']).apply(lambda x: pd.Series({
+            'Gols (Média)': (x['FTHG'] + x['FTAG']).mean(),
+            'Over 0.5 HT %': x['Over05HT'].mean() * 100,
+            'Over 1.5 FT %': x['Over15FT'].mean() * 100,
+            'Over 2.5 FT %': ((x['FTHG'] + x['FTAG']) > 2.5).mean() * 100,
+            'BTTS %': ((x['FTHG'] > 0) & (x['FTAG'] > 0)).mean() * 100,
+            'Cantos (Média)': (x['HC'] + x['AC']).mean()
+        })).reset_index()
+        
+        stats_ano_display = stats_ano.copy()
+        stats_ano_display['Year'] = stats_ano_display['Year'].astype(str)
+        stats_ano_display = stats_ano_display.round(2)
+        st.subheader("📊 Tabela Detalhada (Ano a Ano)")
+        st.dataframe(stats_ano_display, use_container_width=True)
+        st.subheader("📈 Tendência de Gols (Evolução)")
+        fig_evol = px.line(stats_ano, x='Year', y='Gols (Média)', color='League_Custom', markers=True)
+        fig_evol.update_layout(xaxis=dict(type='category'))
+        st.plotly_chart(fig_evol, use_container_width=True)
 
 else: st.info("Carregando...")
