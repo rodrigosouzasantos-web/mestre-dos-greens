@@ -18,34 +18,86 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V65.1 (Fix)",
+    page_title="Mestre dos Greens PRO - V65.2",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- CSS VISUAL ---
+# --- CSS VISUAL (ESTILO PREMIUM DARK/GOLD) ---
 st.markdown("""
     <style>
+    /* Fundo Geral */
     .stApp { background-color: #0e1117; }
+    
+    /* Cards de Métricas */
     .metric-card {background-color: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 10px; text-align: center;}
+    
+    /* Textos de Métricas */
     div[data-testid="stMetricValue"] { font-size: 20px; color: #f1c40f; font-weight: 700; }
     div[data-testid="stMetricLabel"] { font-size: 14px; color: #8b949e; }
+    
+    /* Sidebar */
     [data-testid="stSidebar"] { background-color: #010409; }
-    div.stButton > button { width: 100%; border-radius: 6px; font-weight: bold; background-color: #f1c40f; color: #0d1117; border: none; transition: 0.3s; }
+    
+    /* Botões */
+    div.stButton > button { 
+        width: 100%; border-radius: 6px; font-weight: bold; 
+        background-color: #f1c40f; color: #0d1117; border: none;
+        transition: 0.3s;
+    }
     div.stButton > button:hover { background-color: #d4ac0d; color: #fff; }
-    .placar-row { background-color: #1f2937; padding: 8px; border-radius: 5px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #f1c40f; }
+
+    /* Lista de Placares */
+    .placar-row {
+        background-color: #1f2937;
+        padding: 8px;
+        border-radius: 5px;
+        margin-bottom: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-left: 3px solid #f1c40f;
+    }
     .placar-score { font-size: 16px; font-weight: bold; color: #fff; }
     .placar-prob { font-size: 14px; color: #f1c40f; font-weight: bold; }
     .placar-odd { font-size: 12px; color: #cfcfcf; }
-    .ticket-card { background-color: #1c232b; border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; margin-bottom: 10px; }
+    
+    /* Estilo do Bilhete */
+    .ticket-card {
+        background-color: #1c232b;
+        border: 2px solid #f1c40f;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 10px;
+    }
     .ticket-header { color: #f1c40f; font-size: 22px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
     .ticket-item { font-size: 16px; color: #e6edf3; margin-bottom: 8px; border-left: 3px solid #2ea043; padding-left: 10px; }
     .ticket-total { font-size: 20px; color: #2ea043; font-weight: bold; margin-top: 15px; text-align: right; }
-    .strength-card { background-color: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; text-align: center; margin-bottom: 10px; }
+    
+    /* Cards Analisador (Força) */
+    .strength-card {
+        background-color: #161b22;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        text-align: center;
+        margin-bottom: 10px;
+    }
     .strength-title { color: #8b949e; font-size: 14px; margin-bottom: 5px; }
     .strength-value { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
     .strength-context { font-size: 12px; color: #cfcfcf; }
+    
+    /* Badge Must Win */
+    .badge-must-win-title {
+        background-color: #2ea043; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px;
+    }
+    .badge-must-win-relegation {
+        background-color: #da3633; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px;
+    }
+    .rank-badge {
+        font-weight: bold; color: #f1c40f;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -103,7 +155,7 @@ URLS_HISTORICAS = {
     "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
 }
 
-URL_ATUAIS = {
+URLS_ATUAIS = {
     "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Argentina_Primera_Divisi%C3%B3n_2025.csv",
     "Belgica Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Belgium_Pro_League_2025-2026.csv",
     "Brasileirao Serie A": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Brasileir%C3%A3o_S%C3%A9rie_A_2025-2026.csv",
@@ -297,15 +349,9 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V65.1")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V65.2")
 
 df_recent, df_today, full_df, df_stats = load_data()
-
-# --- DEBUG EXPANDER (CASO DÊ ERRO NOVAMENTE) ---
-# with st.expander("🛠️ Debug de Colunas (Se der erro, abra aqui)"):
-#     if not df_stats.empty:
-#         st.write("Colunas encontradas:", list(df_stats.columns))
-#         st.dataframe(df_stats.head())
 
 if not df_recent.empty:
     if logo:
@@ -506,13 +552,18 @@ if not df_recent.empty:
                             if xg_h is None: continue
                             _, probs_dict, _ = gerar_matriz_poisson(xg_h, xg_a)
                             
-                            if probs_dict['Over15'] > 0.75: all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Over 1.5 Gols', 'Odd_Est': 1/probs_dict['Over15']})
-                            if probs_dict['Under35'] > 0.80: all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 3.5 Gols', 'Odd_Est': 1/probs_dict['Under35']})
-                            if probs_dict['Under35'] > 0.90: all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 4.5 Gols', 'Odd_Est': 1.08})
+                            if probs_dict['Over15'] > 0.75:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Over 1.5 Gols', 'Odd_Est': 1/probs_dict['Over15']})
+                            if probs_dict['Under35'] > 0.80:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 3.5 Gols', 'Odd_Est': 1/probs_dict['Under35']})
+                            if probs_dict['Under35'] > 0.90: 
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Under 4.5 Gols', 'Odd_Est': 1.08})
                             prob_1x = probs_dict['HomeWin'] + probs_dict['Draw']
-                            if prob_1x > 0.80: all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Casa ou Empate (1X)', 'Odd_Est': 1/prob_1x})
+                            if prob_1x > 0.80:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Casa ou Empate (1X)', 'Odd_Est': 1/prob_1x})
                             prob_x2 = probs_dict['AwayWin'] + probs_dict['Draw']
-                            if prob_x2 > 0.80: all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Fora ou Empate (X2)', 'Odd_Est': 1/prob_x2})
+                            if prob_x2 > 0.80:
+                                all_candidates.append({'Jogo': f"{home} x {away}", 'Tipo': 'Fora ou Empate (X2)', 'Odd_Est': 1/prob_x2})
                         except: continue
                     
                     found_dupla = False
@@ -520,22 +571,32 @@ if not df_recent.empty:
                         odd_total = pair[0]['Odd_Est'] * pair[1]['Odd_Est']
                         if 1.45 <= odd_total <= 1.60:
                             st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 DUPLA SEGURA (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {pair[0]['Jogo']} <br> 🎯 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {pair[1]['Jogo']} <br> 🎯 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
-                            msg_dupla = f"🔥 *DUPLA SEGURA* 🔥\n🎯 Odd: ~{odd_total:.2f}\n1️⃣ {pair[0]['Jogo']} - {pair[0]['Tipo']}\n2️⃣ {pair[1]['Jogo']} - {pair[1]['Tipo']}"
-                            if st.button("📤 Enviar Dupla", key="btn_dupla"): enviar_telegram(msg_dupla)
+                            
+                            # BOTÃO TELEGRAM DUPLA
+                            msg_dupla = f"🔥 *DUPLA SEGURA MESTRE DOS GREENS* 🔥\n\n🎯 *Odd Total:* ~{odd_total:.2f}\n\n1️⃣ *{pair[0]['Jogo']}*\n📍 {pair[0]['Tipo']} (@{pair[0]['Odd_Est']:.2f})\n\n2️⃣ *{pair[1]['Jogo']}*\n📍 {pair[1]['Tipo']} (@{pair[1]['Odd_Est']:.2f})\n\n🍀 *Gestão de Banca: 1%*"
+                            if st.button("📤 Enviar Dupla para Telegram", key="btn_dupla"):
+                                if enviar_telegram(msg_dupla): st.success("Enviado!")
+                                else: st.error("Erro.")
+                            
                             found_dupla = True
                             break 
-                    if not found_dupla: st.warning("Nenhuma Dupla ideal encontrada.")
+                    if not found_dupla: st.warning("Nenhuma combinação perfeita para Dupla (@1.50) encontrada hoje.")
 
                     found_tripla = False
                     for trio in itertools.combinations(all_candidates, 3):
                         odd_total = trio[0]['Odd_Est'] * trio[1]['Odd_Est'] * trio[2]['Odd_Est']
                         if 1.65 <= odd_total <= 1.85:
                             st.markdown(f"""<div class="ticket-card"><div class="ticket-header">🎫 TRIPLA DE VALOR (Odd Total ~{odd_total:.2f})</div><div class="ticket-item">⚽ {trio[0]['Jogo']} <br> 🎯 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[1]['Jogo']} <br> 🎯 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})</div><div class="ticket-item">⚽ {trio[2]['Jogo']} <br> 🎯 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})</div></div>""", unsafe_allow_html=True)
-                            msg_tripla = f"🚀 *TRIPLA DE VALOR* 🚀\n🎯 Odd: ~{odd_total:.2f}\n1️⃣ {trio[0]['Jogo']} - {trio[0]['Tipo']}\n2️⃣ {trio[1]['Jogo']} - {trio[1]['Tipo']}\n3️⃣ {trio[2]['Jogo']} - {trio[2]['Tipo']}"
-                            if st.button("📤 Enviar Tripla", key="btn_tripla"): enviar_telegram(msg_tripla)
+                            
+                            # BOTÃO TELEGRAM TRIPLA
+                            msg_tripla = f"🚀 *TRIPLA DE VALOR MESTRE DOS GREENS* 🚀\n\n🎯 *Odd Total:* ~{odd_total:.2f}\n\n1️⃣ *{trio[0]['Jogo']}*\n📍 {trio[0]['Tipo']} (@{trio[0]['Odd_Est']:.2f})\n\n2️⃣ *{trio[1]['Jogo']}*\n📍 {trio[1]['Tipo']} (@{trio[1]['Odd_Est']:.2f})\n\n3️⃣ *{trio[2]['Jogo']}*\n📍 {trio[2]['Tipo']} (@{trio[2]['Odd_Est']:.2f})\n\n🍀 *Gestão de Banca: 0.5%*"
+                            if st.button("📤 Enviar Tripla para Telegram", key="btn_tripla"):
+                                if enviar_telegram(msg_tripla): st.success("Enviado!")
+                                else: st.error("Erro.")
+                            
                             found_tripla = True
                             break
-                    if not found_tripla: st.warning("Nenhuma Tripla ideal encontrada.")
+                    if not found_tripla: st.warning("Nenhuma combinação perfeita para Tripla (@1.70) encontrada hoje.")
 
     # 4. ALAVANCAGEM
     elif menu == "🚀 Alavancagem":
@@ -651,28 +712,9 @@ if not df_recent.empty:
                 
                 st.divider()
                 st.subheader("🚩 Escanteios (Média)")
-                corners_pro = []; 
-                if not df_home.empty: corners_pro.extend(df_home['HC'].tolist())
-                if not df_away.empty: corners_pro.extend(df_away['AC'].tolist())
-                media_geral_cantos = sum(corners_pro) / len(corners_pro) if corners_pro else 0
-                c0, c1, c2, c3, c4 = st.columns(5)
-                c0.metric("Média Geral (Pró)", f"{media_geral_cantos:.1f}")
-                c1.metric("A Favor (Casa)", f"{df_home['HC'].mean():.1f}")
-                c2.metric("Cedidos (Casa)", f"{df_home['AC'].mean():.1f}")
-                c3.metric("A Favor (Fora)", f"{df_away['AC'].mean():.1f}")
-                c4.metric("Cedidos (Fora)", f"{df_away['HC'].mean():.1f}")
-                
-                st.divider()
-                st.subheader("🗓️ Últimos 10 Jogos")
-                last_10 = df_all.head(10)[['Date', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HomeWin', 'AwayWin']].copy()
-                def color_results(row):
-                    color = ''
-                    if row['HomeTeam'] == sel_time and row['HomeWin'] == 1: color = 'background-color: #2ea043; color: white'
-                    elif row['AwayTeam'] == sel_time and row['AwayWin'] == 1: color = 'background-color: #2ea043; color: white'
-                    elif row['FTHG'] == row['FTAG']: color = 'background-color: #6e7681; color: white'
-                    else: color = 'background-color: #da3633; color: white'
-                    return [color] * len(row)
-                st.dataframe(last_10.style.apply(color_results, axis=1), use_container_width=True)
+                c1, c2 = st.columns(2)
+                c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
+                c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
     # 6. RAIO-X LIGAS
     elif menu == "🌍 Raio-X Ligas":
