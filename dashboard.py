@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.5 (Final + Fix)",
+    page_title="Mestre dos Greens PRO - V66.5.1 (Grade Fix)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -337,25 +337,40 @@ def get_weighted_avg(full_df, venue_df, col_name):
     return (w_geral * 0.10) + (w_venue * 0.40) + (w_10 * 0.20) + (w_5 * 0.30)
 
 def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_goal='FTHG', col_away_goal='FTAG'):
-    df_league = df_historico[df_historico['League_Custom'] == league]
+    # CORREÇÃO PARA BUSCA FLEXÍVEL (Se liga for None, procura em tudo)
+    if league:
+        df_league = df_historico[df_historico['League_Custom'] == league]
+    else:
+        df_league = df_historico
+        
     if df_league.empty: return None, None, None, None
     avg_goals_home = df_league[col_home_goal].mean()
     avg_goals_away = df_league[col_away_goal].mean()
+    
     df_h_all = df_historico[(df_historico['HomeTeam'] == team_home) | (df_historico['AwayTeam'] == team_home)].sort_values('Date')
     df_a_all = df_historico[(df_historico['HomeTeam'] == team_away) | (df_historico['AwayTeam'] == team_away)].sort_values('Date')
+    
     df_h = df_historico[df_historico['HomeTeam'] == team_home].sort_values('Date')
     df_a = df_historico[df_historico['AwayTeam'] == team_away].sort_values('Date')
+    
     if len(df_h_all) < 5 or len(df_a_all) < 5: return None, None, None, None
+    
     att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
     strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
+    
     def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
     strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
+    
     xg_home = strength_att_h * strength_def_a * avg_goals_home
+    
     att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
     strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
+    
     def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
     strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
+    
     xg_away = strength_att_a * strength_def_h * avg_goals_away
+    
     return xg_home, xg_away, strength_att_h, strength_att_a
 
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
@@ -403,7 +418,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.5 (Winrate Fix)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.5.1 (Grade Fix)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -429,79 +444,94 @@ if not df_recent.empty:
             times = jogo_selecionado.split(" x ")
             home_sel, away_sel = times[0], times[1]
             
-            # INFO DE CLASSIFICAÇÃO (CÁLCULO DINÂMICO)
+            # TENTATIVA 1: Busca pela liga exata
+            liga_match = None
             try:
                 liga_match = df_recent[df_recent['HomeTeam'] == home_sel]['League_Custom'].mode()[0]
-                df_league_matches = df_current_season[df_current_season['League_Custom'] == liga_match]
-                df_rank = calculate_standings(df_league_matches)
-                
-                h_info = df_rank[df_rank['Team'] == home_sel]
-                a_info = df_rank[df_rank['Team'] == away_sel]
-                
-                h_rank = h_info.iloc[0]['Rank'] if not h_info.empty else "-"
-                a_rank = a_info.iloc[0]['Rank'] if not a_info.empty else "-"
-                
-                home_rank_str = f"({h_rank}º)"
-                away_rank_str = f"({a_rank}º)"
-                
-                must_win_msg = ""
-                if h_rank != "-":
-                    if int(h_rank) <= 3: must_win_msg = f"🔥 {home_sel}: Briga por Título!"
-                    elif int(h_rank) >= len(df_rank) - 3: must_win_msg = f"💀 {home_sel}: Fuga do Z4!"
-                if must_win_msg: st.warning(must_win_msg)
-                
-            except: 
-                liga_match = None
-                home_rank_str = ""
-                away_rank_str = ""
-
+            except:
+                # TENTATIVA 2: Se falhar, tenta achar o time em qualquer liga
+                if home_sel in df_recent['HomeTeam'].unique():
+                    # Pega a última liga onde esse time jogou
+                    liga_match = df_recent[df_recent['HomeTeam'] == home_sel].iloc[-1]['League_Custom']
+            
+            # INFO DE CLASSIFICAÇÃO
+            home_rank_str, away_rank_str, must_win_msg = "", "", ""
             if liga_match:
-                xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'FTHG', 'FTAG')
-                xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'HTHG', 'HTAG')
-                exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
-                if xg_h is not None:
-                    st.divider()
-                    st.markdown(f"### 📊 Raio-X: {home_sel} {home_rank_str} vs {away_sel} {away_rank_str}")
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("⚽ xG Esperado (FT)", f"{xg_h+xg_a:.2f}")
-                    c2.metric("🚩 Cantos Esperados", f"{exp_cantos:.1f}")
-                    c3.metric("xG Casa", f"{xg_h:.2f}")
-                    c4.metric("xG Fora", f"{xg_a:.2f}")
-                    matriz, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
+                try:
+                    df_league_matches = df_current_season[df_current_season['League_Custom'] == liga_match]
+                    df_rank = calculate_standings(df_league_matches)
+                    
+                    h_info = df_rank[df_rank['Team'] == home_sel]
+                    a_info = df_rank[df_rank['Team'] == away_sel]
+                    
+                    h_rank = h_info.iloc[0]['Rank'] if not h_info.empty else "-"
+                    a_rank = a_info.iloc[0]['Rank'] if not a_info.empty else "-"
+                    
+                    home_rank_str = f"({h_rank}º)"
+                    away_rank_str = f"({a_rank}º)"
+                    
+                    if h_rank != "-":
+                        if int(h_rank) <= 3: must_win_msg = f"🔥 {home_sel}: Briga por Título!"
+                        elif int(h_rank) >= len(df_rank) - 3: must_win_msg = f"💀 {home_sel}: Fuga do Z4!"
+                    if must_win_msg: st.warning(must_win_msg)
+                except: pass
+
+            # CÁLCULO DE PROBABILIDADES (Mesmo se não achar a liga, tenta calcular com base geral)
+            xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'FTHG', 'FTAG')
+            xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'HTHG', 'HTAG')
+            exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
+            
+            if xg_h is not None:
+                st.divider()
+                st.markdown(f"### 📊 Raio-X: {home_sel} {home_rank_str} vs {away_sel} {away_rank_str}")
+                if liga_match: st.caption(f"Liga Identificada: {liga_match}")
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("⚽ xG Esperado (FT)", f"{xg_h+xg_a:.2f}")
+                c2.metric("🚩 Cantos Esperados", f"{exp_cantos:.1f}")
+                c3.metric("xG Casa", f"{xg_h:.2f}")
+                c4.metric("xG Fora", f"{xg_a:.2f}")
+                
+                matriz, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
+                
+                # Cálculo Prob HT
+                if xg_h_ht and xg_a_ht:
                     prob_00_ht = poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht)
                     prob_over05_ht = (1 - prob_00_ht) * 100
-                    col_matriz, col_probs = st.columns([1.5, 1])
-                    with col_matriz:
-                        exibir_matriz_visual(matriz, home_sel, away_sel)
-                        if st.button("📤 Enviar Análise", key="btn_send_grade"):
-                            msg = f"🔥 *ANÁLISE* {home_sel} x {away_sel}\n🏆 Liga: {liga_match}\n📊 Over 2.5: {probs['Over25']*100:.1f}%\n"
-                            if must_win_msg: msg += f"\n⚠️ *CONTEXTO:* {must_win_msg}"
-                            enviar_telegram(msg)
-                        if st.button("📋 Ver Top Placares", key="btn_grade"):
-                            st.subheader("Placares Mais Prováveis")
-                            for score in top_scores:
-                                odd_j = get_odd_justa(score['Prob'])
-                                st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
-                    with col_probs:
-                        st.subheader("📈 Probabilidades Reais")
-                        def visual_metric(label, value, target):
-                            yellow_threshold = target - 10
-                            if value >= target: st.success(f"🟢 {label}: {value:.1f}%") 
-                            elif value >= yellow_threshold: st.warning(f"🟡 {label}: {value:.1f}%") 
-                            else: st.error(f"🔴 {label}: {value:.1f}%") 
-                        visual_metric("Over 0.5 HT", prob_over05_ht, 80)
-                        visual_metric("Over 1.5 FT", probs['Over15']*100, 80)
-                        visual_metric("Over 2.5 FT", probs['Over25']*100, 60)
-                        visual_metric("BTTS", probs['BTTS']*100, 60)
-                        visual_metric("Under 3.5 FT", probs['Under35']*100, 80)
-                        st.markdown("---")
-                        st.write(f"🏠 **{home_sel}**: {probs['HomeWin']*100:.1f}%")
-                        st.write(f"✈️ **{away_sel}**: {probs['AwayWin']*100:.1f}%")
-                else: st.warning("Dados insuficientes.")
-            else: st.warning("Liga não encontrada.")
+                else:
+                    prob_over05_ht = 0.0
+
+                col_matriz, col_probs = st.columns([1.5, 1])
+                with col_matriz:
+                    exibir_matriz_visual(matriz, home_sel, away_sel)
+                    if st.button("📤 Enviar Análise", key="btn_send_grade"):
+                        msg = f"🔥 *ANÁLISE* {home_sel} x {away_sel}\n🏆 Liga: {liga_match}\n📊 Over 2.5: {probs['Over25']*100:.1f}%\n"
+                        if must_win_msg: msg += f"\n⚠️ *CONTEXTO:* {must_win_msg}"
+                        enviar_telegram(msg)
+                    if st.button("📋 Ver Top Placares", key="btn_grade"):
+                        st.subheader("Placares Mais Prováveis")
+                        for score in top_scores:
+                            odd_j = get_odd_justa(score['Prob'])
+                            st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
+                with col_probs:
+                    st.subheader("📈 Probabilidades Reais")
+                    def visual_metric(label, value, target):
+                        yellow_threshold = target - 10
+                        if value >= target: st.success(f"🟢 {label}: {value:.1f}%") 
+                        elif value >= yellow_threshold: st.warning(f"🟡 {label}: {value:.1f}%") 
+                        else: st.error(f"🔴 {label}: {value:.1f}%") 
+                    visual_metric("Over 0.5 HT", prob_over05_ht, 80)
+                    visual_metric("Over 1.5 FT", probs['Over15']*100, 80)
+                    visual_metric("Over 2.5 FT", probs['Over25']*100, 60)
+                    visual_metric("BTTS", probs['BTTS']*100, 60)
+                    visual_metric("Under 3.5 FT", probs['Under35']*100, 80)
+                    st.markdown("---")
+                    st.write(f"🏠 **{home_sel}**: {probs['HomeWin']*100:.1f}%")
+                    st.write(f"✈️ **{away_sel}**: {probs['AwayWin']*100:.1f}%")
+            else: st.warning("Dados insuficientes para análise estatística deste confronto (Times novos ou sem histórico recente).")
         else: st.info("Aguardando jogos...")
 
-    # 2. WINRATE & ASSERTIVIDADE (ATUALIZADO V66.5 - DETALHADO + CALENDÁRIO)
+    # 2. WINRATE (ATUALIZADO V66.5 - DETALHADO + CALENDÁRIO)
     elif menu == "📊 Winrate & Assertividade":
         st.header("📊 Assertividade do Robô (Backtest Detalhado)")
         
