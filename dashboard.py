@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.5 (Winrate Fix)",
+    page_title="Mestre dos Greens PRO - V66.4",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -61,9 +61,9 @@ else:
     TELEGRAM_CHAT_ID = st.sidebar.text_input("Chat ID")
 
 def enviar_telegram(msg):
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID: return False
     try: 
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"}); return True
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": TELEGRAM_CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+        return True
     except: return False
 
 def get_odd_justa(prob): return 100 / prob if prob > 1 else 0.00
@@ -286,16 +286,17 @@ def gerar_matriz_poisson(xg_home, xg_away):
     for h in range(6):
         row = []
         for a in range(6):
-            p = poisson.pmf(h, xg_home) * poisson.pmf(a, xg_away)
-            row.append(p*100)
-            top_scores.append({'Placar': f"{h}x{a}", 'Prob': p*100})
-            if h > a: probs_dict["HomeWin"] += p
-            elif a > h: probs_dict["AwayWin"] += p
-            else: probs_dict["Draw"] += p
-            if (h+a) > 1.5: probs_dict["Over15"] += p
-            if (h+a) > 2.5: probs_dict["Over25"] += p
-            if (h+a) < 3.5: probs_dict["Under35"] += p
-            if h > 0 and a > 0: probs_dict["BTTS"] += p
+            prob = poisson.pmf(h, xg_home) * poisson.pmf(a, xg_away)
+            row.append(prob * 100)
+            top_scores.append({'Placar': f"{h}x{a}", 'Prob': prob*100})
+            if h > a: probs_dict["HomeWin"] += prob
+            elif h < a: probs_dict["AwayWin"] += prob
+            else: probs_dict["Draw"] += prob
+            total_goals = h + a
+            if total_goals > 1.5: probs_dict["Over15"] += prob
+            if total_goals > 2.5: probs_dict["Over25"] += prob
+            if total_goals < 3.5: probs_dict["Under35"] += prob
+            if h > 0 and a > 0: probs_dict["BTTS"] += prob
         matrix.append(row)
     return matrix, probs_dict, sorted(top_scores, key=lambda x: x['Prob'], reverse=True)[:5]
 
@@ -307,7 +308,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.5 (Final + Winrate Fix)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.4 (Final)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -377,7 +378,7 @@ if not df_recent.empty:
                         show_metric("BTTS", probs['BTTS']*100, 60)
                         show_metric("Under 3.5 FT", probs['Under35']*100, 80)
 
-    # 2. WINRATE (BUSCA INTELIGENTE)
+    # 2. WINRATE (DETALHADO E CORRIGIDO)
     elif menu == "📊 Winrate & Assertividade":
         st.header("📊 Assertividade do Robô (Backtest Detalhado)")
         
@@ -395,6 +396,7 @@ if not df_recent.empty:
         tab_dia, tab_mes = st.tabs([f"📅 Resultados do Dia ({selected_date.strftime('%d/%m')})", "🗓️ Acumulado do Mês"])
         
         def calculate_winrate(start, end):
+            # Filtra jogos do período
             mask = (df_recent['Date'] >= pd.Timestamp(start)) & (df_recent['Date'] <= pd.Timestamp(end) + pd.Timedelta(hours=23, minutes=59))
             games = df_recent.loc[mask]
             
@@ -403,8 +405,10 @@ if not df_recent.empty:
                 return
 
             market_stats = {
-                'Over 0.5 HT': {'total':0, 'green':0}, 'Over 1.5 FT': {'total':0, 'green':0},
-                'Over 2.5 FT': {'total':0, 'green':0}, 'BTTS': {'total':0, 'green':0},
+                'Over 0.5 HT': {'total':0, 'green':0}, 
+                'Over 1.5 FT': {'total':0, 'green':0},
+                'Over 2.5 FT': {'total':0, 'green':0}, 
+                'BTTS': {'total':0, 'green':0},
                 'Under 3.5 FT': {'total':0, 'green':0}
             }
             results = []
@@ -424,38 +428,43 @@ if not df_recent.empty:
                 prob_ht = (1 - (poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht))) 
 
                 # Lógica de Green/Red
-                # 1. Over 0.5 HT (> 80%)
+                # 1. Over 0.5 HT (>= 80%)
                 if prob_ht >= 0.80:
                     market_stats['Over 0.5 HT']['total'] += 1
-                    if (row['HTHG'] + row['HTAG']) > 0: market_stats['Over 0.5 HT']['green'] += 1; res="✅"
+                    if (row['HTHG'] + row['HTAG']) > 0: 
+                        market_stats['Over 0.5 HT']['green'] += 1; res="✅"
                     else: res="🔻"
                     results.append({'Jogo':f"{h} x {a}", 'Mercado':'Over 0.5 HT', 'Resultado':res})
 
-                # 2. Over 1.5 FT (> 80%)
+                # 2. Over 1.5 FT (>= 80%) -> CORRIGIDO: > 1.5 gols (2 gols ou mais)
                 if probs['Over15'] >= 0.80:
                     market_stats['Over 1.5 FT']['total'] += 1
-                    if (row['FTHG'] + row['FTAG']) > 1.5: market_stats['Over 1.5 FT']['green'] += 1; res="✅"
+                    if (row['FTHG'] + row['FTAG']) > 1.5: 
+                        market_stats['Over 1.5 FT']['green'] += 1; res="✅"
                     else: res="🔻"
                     results.append({'Jogo':f"{h} x {a}", 'Mercado':'Over 1.5 FT', 'Resultado':res})
 
                 # 3. Over 2.5 FT (> 60%)
                 if probs['Over25'] >= 0.60:
                     market_stats['Over 2.5 FT']['total'] += 1
-                    if (row['FTHG'] + row['FTAG']) > 2.5: market_stats['Over 2.5 FT']['green'] += 1; res="✅"
+                    if (row['FTHG'] + row['FTAG']) > 2.5: 
+                        market_stats['Over 2.5 FT']['green'] += 1; res="✅"
                     else: res="🔻"
                     results.append({'Jogo':f"{h} x {a}", 'Mercado':'Over 2.5 FT', 'Resultado':res})
 
                 # 4. BTTS (> 60%)
                 if probs['BTTS'] >= 0.60:
                     market_stats['BTTS']['total'] += 1
-                    if (row['FTHG'] > 0 and row['FTAG'] > 0): market_stats['BTTS']['green'] += 1; res="✅"
+                    if (row['FTHG'] > 0 and row['FTAG'] > 0): 
+                        market_stats['BTTS']['green'] += 1; res="✅"
                     else: res="🔻"
                     results.append({'Jogo':f"{h} x {a}", 'Mercado':'BTTS', 'Resultado':res})
 
                 # 5. Under 3.5 FT (> 80%)
                 if probs['Under35'] >= 0.80:
                     market_stats['Under 3.5 FT']['total'] += 1
-                    if (row['FTHG'] + row['FTAG']) < 3.5: market_stats['Under 3.5 FT']['green'] += 1; res="✅"
+                    if (row['FTHG'] + row['FTAG']) < 3.5: 
+                        market_stats['Under 3.5 FT']['green'] += 1; res="✅"
                     else: res="🔻"
                     results.append({'Jogo':f"{h} x {a}", 'Mercado':'Under 3.5 FT', 'Resultado':res})
 
@@ -479,9 +488,10 @@ if not df_recent.empty:
                 i=0
                 for m, d in market_stats.items():
                     with cols[i]:
-                        wr = (d['green']/d['total']*100) if d['total']>0 else 0
+                        t = d['total']; g = d['green']
+                        wr = (g/t*100) if t>0 else 0
                         color = "#2ea043" if wr >= 70 else "#f1c40f" if wr >= 50 else "#da3633"
-                        st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{m}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{d['green']}/{d['total']}</div></div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{m}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{g}/{t}</div></div>""", unsafe_allow_html=True)
                     i+=1
                 
                 with st.expander("📝 Detalhes dos Jogos"):
