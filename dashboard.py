@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.3 (Final)",
+    page_title="Mestre dos Greens PRO - V66.3",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -286,7 +286,6 @@ def calculate_standings(df_league_matches):
     if df_league_matches.empty: return pd.DataFrame()
     
     teams = {}
-    # Itera sobre todos os jogos da liga na temporada atual
     for i, row in df_league_matches.iterrows():
         h, a = row['HomeTeam'], row['AwayTeam']
         hg, ag = row['FTHG'], row['FTAG']
@@ -294,15 +293,8 @@ def calculate_standings(df_league_matches):
         if h not in teams: teams[h] = {'P':0, 'W':0, 'D':0, 'L':0, 'GF':0, 'GA':0, 'Pts':0}
         if a not in teams: teams[a] = {'P':0, 'W':0, 'D':0, 'L':0, 'GF':0, 'GA':0, 'Pts':0}
         
-        # Home Stats
-        teams[h]['P'] += 1
-        teams[h]['GF'] += hg
-        teams[h]['GA'] += ag
-        
-        # Away Stats
-        teams[a]['P'] += 1
-        teams[a]['GF'] += ag
-        teams[a]['GA'] += hg
+        teams[h]['P'] += 1; teams[h]['GF'] += hg; teams[h]['GA'] += ag
+        teams[a]['P'] += 1; teams[a]['GF'] += ag; teams[a]['GA'] += hg
         
         if hg > ag: # Home Win
             teams[h]['W'] += 1; teams[h]['Pts'] += 3
@@ -314,14 +306,11 @@ def calculate_standings(df_league_matches):
             teams[h]['D'] += 1; teams[h]['Pts'] += 1
             teams[a]['D'] += 1; teams[a]['Pts'] += 1
             
-    # Convert to DF
     df_rank = pd.DataFrame.from_dict(teams, orient='index').reset_index()
     df_rank.rename(columns={'index':'Team'}, inplace=True)
     df_rank['GD'] = df_rank['GF'] - df_rank['GA']
-    
-    # Sort: Points -> GD -> GF
     df_rank = df_rank.sort_values(by=['Pts', 'GD', 'GF'], ascending=False).reset_index(drop=True)
-    df_rank.index += 1 # 1st place
+    df_rank.index += 1 
     df_rank['Rank'] = df_rank.index
     
     return df_rank
@@ -346,29 +335,19 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
     df_h = df_historico[df_historico['HomeTeam'] == team_home].sort_values('Date')
     df_a = df_historico[df_historico['AwayTeam'] == team_away].sort_values('Date')
     if len(df_h_all) < 5 or len(df_a_all) < 5: return None, None, None, None
-    att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
-    strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
-    def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
-    strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
-    xg_home = strength_att_h * strength_def_a * avg_goals_home
-    att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
-    strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
-    def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
-    strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
-    xg_away = strength_att_a * strength_def_h * avg_goals_away
-    return xg_home, xg_away, strength_att_h, strength_att_a
+    att_h = get_weighted_avg(df_h_all, df_h, col_home_goal)
+    def_a = get_weighted_avg(df_a_all, df_a, col_home_goal)
+    att_a = get_weighted_avg(df_a_all, df_a, col_away_goal)
+    def_h = get_weighted_avg(df_h_all, df_h, col_away_goal)
+    xg_home = (att_h / avg_goals_home) * (def_a / avg_goals_home) * avg_goals_home if avg_goals_home > 0 else 0
+    xg_away = (att_a / avg_goals_away) * (def_h / avg_goals_away) * avg_goals_away if avg_goals_away > 0 else 0
+    return xg_home, xg_away, 0, 0
 
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
     df_a = df_historico[df_historico['AwayTeam'] == team_away]
     if df_h.empty or df_a.empty: return 0.0, {}
-    media_pro_a = df_h['HC'].mean()
-    media_contra_b = df_a['HC'].mean() 
-    exp_cantos_a = (media_pro_a + media_contra_b) / 2
-    media_pro_b = df_a['AC'].mean()
-    media_contra_a = df_h['AC'].mean() 
-    exp_cantos_b = (media_pro_b + media_contra_a) / 2
-    total_exp = exp_cantos_a + exp_cantos_b
+    total_exp = (df_h['HC'].mean() + df_a['AC'].mean() + df_a['HC'].mean() + df_h['AC'].mean()) / 2
     probs = { "Over 8.5": poisson.sf(8, total_exp) * 100, "Over 9.5": poisson.sf(9, total_exp) * 100, "Over 10.5": poisson.sf(10, total_exp) * 100 }
     return total_exp, probs
 
@@ -402,8 +381,10 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     fig.update_layout(title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)), xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category', autorange='reversed'), annotations=[dict(x=0.5, y=-0.15, xref='paper', yref='paper', text=f"<b>{away_name}</b> (Visitante)", showarrow=False, font=dict(size=18, color='#fff'))], paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=500, margin=dict(t=80, l=80, r=20, b=60))
     st.plotly_chart(fig, use_container_width=True)
 
-# --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.3 (Final)")
+# ==============================================================================
+# APP
+# ==============================================================================
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.3")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -650,11 +631,11 @@ if not df_recent.empty:
             if st.button("Calcular Mês"):
                 calculate_winrate(first_day, pd.Timestamp.now(), "Mês")
 
-    # 3. CLASSIFICAÇÃO (CÁLCULO REAL)
+    # 3. CLASSIFICAÇÃO
     elif menu == "🏆 Classificação":
         st.header("🏆 Classificação (Standings 2025/26)")
         if not df_current_season.empty:
-            leagues_avail = sorted(df_current_season['League_Custom'].unique())
+            leagues = sorted(df_current_season['League_Custom'].unique())
             sel_league = st.selectbox("Selecione a Liga:", leagues_avail)
             
             # FILTRA JOGOS DA LIGA ATUAL
