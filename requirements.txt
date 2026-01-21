@@ -1,7 +1,7 @@
+streamlit
 pandas
 requests
-streamlit
 plotly
-scikit-learn
 scipy
 Pillow
+altair
