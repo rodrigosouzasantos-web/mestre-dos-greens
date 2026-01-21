@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.5 (Winrate Fix)",
+    page_title="Mestre dos Greens PRO - V66.5 (Final + Fix)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -403,7 +403,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.5 (Final)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.5 (Winrate Fix)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -501,7 +501,7 @@ if not df_recent.empty:
             else: st.warning("Liga não encontrada.")
         else: st.info("Aguardando jogos...")
 
-    # 2. WINRATE (ATUALIZADO V66.5 - DETALHADO + CALENDÁRIO)
+    # 2. WINRATE & ASSERTIVIDADE (ATUALIZADO V66.5 - DETALHADO + CALENDÁRIO)
     elif menu == "📊 Winrate & Assertividade":
         st.header("📊 Assertividade do Robô (Backtest Detalhado)")
         
