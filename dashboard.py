@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.8 (Golden Master)",
+    page_title="Mestre dos Greens PRO - V66.9 (Final Dynamic)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -144,7 +144,6 @@ def get_odd_justa(prob):
 # ==============================================================================
 @st.cache_data(ttl=3600)
 def load_data():
-    # Definição das URLs dentro da função para evitar erro de escopo
     URLS_HISTORICAS = {
         "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
         "Belgica Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Belgium_Pro_League_2016-2025.csv",
@@ -282,7 +281,7 @@ def load_data():
     # 3. Dataframe SÓ da Temporada Atual (Para Standings)
     df_current_season = pd.concat(current_season_dfs, ignore_index=True) if current_season_dfs else pd.DataFrame()
     
-    # 4. Jogos de Hoje (COM O AJUSTE DE DATA/HORA)
+    # 4. Jogos de Hoje (COM AJUSTE DE HORA V66.7)
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
@@ -291,9 +290,9 @@ def load_data():
         
         # --- AJUSTE DE FUSO HORÁRIO (UTC PARA BRASIL -3h) ---
         if 'date_unix' in df_today.columns:
-            df_today['match_time'] = pd.to_datetime(df_today['date_unix'], unit='s') - pd.Timedelta(hours=3)
+            df_today['match_time'] = pd.to_datetime(df_today['date_unix'], unit='s') - timedelta(hours=3)
         elif 'date' in df_today.columns:
-            df_today['match_time'] = pd.to_datetime(df_today['date']) - pd.Timedelta(hours=3)
+            df_today['match_time'] = pd.to_datetime(df_today['date']) - timedelta(hours=3)
         else:
             df_today['match_time'] = datetime.now()
             
@@ -315,7 +314,6 @@ def load_data():
 # ==============================================================================
 def calculate_standings(df_league_matches):
     if df_league_matches.empty: return pd.DataFrame()
-    
     teams = {}
     for i, row in df_league_matches.iterrows():
         h, a = row['HomeTeam'], row['AwayTeam']
@@ -419,7 +417,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.8 (Golden Master)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.9 (Final Dynamic)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -708,28 +706,59 @@ if not df_recent.empty:
                             found_tripla = True; break
                     if not found_tripla: st.warning("Nenhuma Tripla ideal encontrada.")
 
-    # 6. ALAVANCAGEM (DINÂMICA V66.8)
+    # 6. ALAVANCAGEM (DINÂMICA V66.9)
     elif menu == "🚀 Alavancagem":
         st.header("🚀 Alavancagem Pro (Gestão de Ciclos)")
         
         # --- INPUT DINÂMICO ---
         stake_inicial = st.sidebar.number_input("💰 Sua Stake Inicial (R$):", min_value=10, value=50, step=10)
         
-        # Cálculos Dinâmicos
-        ciclos = []
-        bank = stake_inicial
-        for i in range(1, 6):
-            meta = bank * 2
-            saque = 0
-            if i == 1: saque = stake_inicial # Recupera o investimento
-            elif i < 5: saque = bank * 0.5 # Saca metade do lucro
-            else: saque = meta # No último, saca tudo
-            
-            prox_ciclo = meta - saque if i < 5 else 0
-            ciclos.append({'Ciclo': i, 'Início': bank, 'Meta': meta, 'Saque': saque, 'Próximo': prox_ciclo})
-            bank = prox_ciclo # Juros compostos
+        # Cálculos Dinâmicos da Tabela
+        # Ciclo 1: Início S, Meta 2S, Saque S, Próx S
+        # Ciclo 2: Início S, Meta 2S, Saque 0.5S, Próx 1.5S
+        # Ciclo 3: Início 1.5S, Meta 3S, Saque S, Próx 2S
+        # Ciclo 4: Início 2S, Meta 4S, Saque S, Próx 3S
+        # Ciclo 5: Início 3S, Meta 6S, Saque 6S, Fim
+        
+        c1_start = stake_inicial
+        c1_goal = c1_start * 2
+        c1_saque = stake_inicial
+        c1_prox = c1_start # (2S - S) = S
+        
+        c2_start = c1_prox
+        c2_goal = c2_start * 2
+        c2_saque = c2_start * 0.5
+        c2_prox = c2_goal - c2_saque # (2S - 0.5S) = 1.5S
+        
+        c3_start = c2_prox
+        c3_goal = c3_start * 2
+        c3_saque = stake_inicial
+        c3_prox = c3_goal - c3_saque # (3S - S) = 2S
+        
+        c4_start = c3_prox
+        c4_goal = c4_start * 2
+        c4_saque = stake_inicial
+        c4_prox = c4_goal - c4_saque # (4S - S) = 3S
+        
+        c5_start = c4_prox
+        c5_goal = c5_start * 2
+        c5_saque = c5_goal
+        c5_prox = 0
+
+        ciclos_data = [
+            {'Ciclo': 1, 'Início': c1_start, 'Meta': c1_goal, 'Saque': c1_saque, 'Próximo': c1_prox},
+            {'Ciclo': 2, 'Início': c2_start, 'Meta': c2_goal, 'Saque': c2_saque, 'Próximo': c2_prox},
+            {'Ciclo': 3, 'Início': c3_start, 'Meta': c3_goal, 'Saque': c3_saque, 'Próximo': c3_prox},
+            {'Ciclo': 4, 'Início': c4_start, 'Meta': c4_goal, 'Saque': c4_saque, 'Próximo': c4_prox},
+            {'Ciclo': 5, 'Início': c5_start, 'Meta': c5_goal, 'Saque': c5_saque, 'Próximo': 0},
+        ]
 
         # --- Tabela Dinâmica ---
+        rows_html = ""
+        for c in ciclos_data:
+            next_val = f"{c['Próximo']:.2f}" if c['Próximo'] > 0 else "---"
+            rows_html += f"<tr><td>{c['Ciclo']}</td><td>R$ {c['Início']:.2f}</td><td>R$ {c['Meta']:.2f}</td><td><span class='winrate-green'>R$ {c['Saque']:.2f}</span></td><td>R$ {next_val}</td></tr>"
+
         st.markdown(f"""
         <div class="metric-card" style="text-align: left;">
             <h3 style="color: #f1c40f; margin-top: 0;">💎 Modelo de Alavancagem com Proteção</h3>
@@ -739,7 +768,7 @@ if not df_recent.empty:
             </p>
             <table class="alavancagem-table">
                 <tr><th>Ciclo</th><th>Início (R$)</th><th>Meta (R$)</th><th>Saque (R$)</th><th>Próx. Ciclo (R$)</th></tr>
-                {''.join([f"<tr><td>{c['Ciclo']}</td><td>{c['Início']:.2f}</td><td>{c['Meta']:.2f}</td><td><span class='winrate-green'>{c['Saque']:.2f}</span></td><td>{c['Próximo']:.2f}</td></tr>" for c in ciclos])}
+                {rows_html}
             </table>
             <br>
             <b>Regra do Jogo (Ajustada):</b><br>
