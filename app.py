@@ -9,8 +9,7 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # ⚙️ CONFIGURAÇÕES DO ROBÔ
 # ==============================================================================
-# Tenta pegar dos Segredos do GitHub (Variáveis de Ambiente)
-# Se não achar, usa os valores padrão (coloque seus dados ali por garantia)
+# Versão LIMPA (sem espaços ocultos)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8571442533:AAFbqfHsE1oTdwt2yarJGFpqWgST3-UIUwA")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-1003590805331")
 
