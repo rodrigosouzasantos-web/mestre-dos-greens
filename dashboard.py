@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.5.1 (Grade Fix)",
+    page_title="Mestre dos Greens PRO - V66.6 (Alavancagem Pro)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -98,6 +98,23 @@ st.markdown("""
     }
     .rank-badge {
         font-weight: bold; color: #f1c40f;
+    }
+    
+    /* Tabela Alavancagem */
+    .alavancagem-table {
+        font-size: 14px;
+        color: #e6edf3;
+        border-collapse: collapse;
+        width: 100%;
+    }
+    .alavancagem-table th, .alavancagem-table td {
+        border: 1px solid #30363d;
+        padding: 8px;
+        text-align: center;
+    }
+    .alavancagem-table th {
+        background-color: #161b22;
+        color: #f1c40f;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -418,7 +435,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
     st.plotly_chart(fig, use_container_width=True)
 
 # --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.5.1 (Grade Fix)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.6 (Alavancagem Pro)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -659,7 +676,7 @@ if not df_recent.empty:
             first_day = selected_date.replace(day=1)
             calculate_winrate(first_day, selected_date)
 
-    # 3. CLASSIFICAÇÃO (CÁLCULO REAL)
+    # 3. CLASSIFICAÇÃO
     elif menu == "🏆 Classificação":
         st.header("🏆 Classificação (Standings 2025/26)")
         if not df_current_season.empty:
@@ -791,55 +808,125 @@ if not df_recent.empty:
                             break
                     if not found_tripla: st.warning("Nenhuma Tripla ideal encontrada.")
 
-    # 6. ALAVANCAGEM
+    # 6. ALAVANCAGEM (NOVA VERSÃO - V66.6)
     elif menu == "🚀 Alavancagem":
-        st.header("🚀 Alavancagem (Odds Altas & Zebras)")
-        if df_today.empty:
-            st.info("Aguardando jogos...")
-        else:
-            if st.button("🔄 Buscar Oportunidades"):
-                with st.spinner("Caçando zebras e placares bomba..."):
-                    found_zebra = False
-                    for i, row in df_today.iterrows():
-                        home, away = row['HomeTeam'], row['AwayTeam']
-                        try:
-                            league = df_recent[df_recent['HomeTeam'] == home]['League_Custom'].mode()[0]
-                            xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
-                            if xg_h is None: continue
-                            _, probs, top_scores = gerar_matriz_poisson(xg_h, xg_a)
-                            
-                            if probs['AwayWin'] > 0.30 and probs['HomeWin'] < 0.50:
-                                odd_zebra = 1/probs['AwayWin']
-                                st.markdown(f"""
-                                <div class="ticket-card" style="border-color: #e74c3c;">
-                                    <div class="ticket-header" style="color: #e74c3c;">🦓 ALERTA DE ZEBRA: {away}</div>
-                                    <div class="ticket-item">⚽ {home} x {away}</div>
-                                    <div class="ticket-item">📊 Chance de Vitória: {probs['AwayWin']*100:.1f}% (Odd Justa: @{odd_zebra:.2f})</div>
-                                    <div class="ticket-item">📉 Oponente Instável (Casa): {probs['HomeWin']*100:.1f}%</div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                found_zebra = True
-                                if st.button(f"📤 Enviar Zebra {away}", key=f"zebra_{i}"):
-                                    enviar_telegram(f"🦓 *ALERTA DE ZEBRA* 🦓\n\n⚽ {home} x {away}\n🔥 {away} para Vencer\n📊 Prob: {probs['AwayWin']*100:.1f}%")
+        st.header("🚀 Alavancagem Pro (Gestão de Ciclos)")
+        
+        # --- PAINEL DE GESTÃO (INFO) ---
+        st.markdown("""
+        <div class="metric-card" style="text-align: left;">
+            <h3 style="color: #f1c40f; margin-top: 0;">💎 Modelo de Alavancagem com Proteção</h3>
+            <p style="font-size: 14px; color: #cfcfcf;">
+            Estrutura de <b>5 Ciclos</b> com <b>2 Jogos por Ciclo</b> (Total: 10 Jogos).<br>
+            Objetivo: Dobrar a stake do ciclo com lucro protegido (saques parciais).
+            </p>
+            <table class="alavancagem-table">
+                <tr><th>Ciclo</th><th>Início (R$)</th><th>Meta (R$)</th><th>Saque (R$)</th><th>Próx. Ciclo (R$)</th></tr>
+                <tr><td>1</td><td>50</td><td>100</td><td><span class="winrate-green">50</span> (Recupera)</td><td>50</td></tr>
+                <tr><td>2</td><td>50</td><td>100</td><td><span class="winrate-green">25</span> (Lucro)</td><td>75</td></tr>
+                <tr><td>3</td><td>75</td><td>150</td><td><span class="winrate-green">50</span> (Lucro)</td><td>100</td></tr>
+                <tr><td>4</td><td>100</td><td>200</td><td><span class="winrate-green">50</span> (Lucro)</td><td>150</td></tr>
+                <tr><td>5</td><td>150</td><td>300</td><td><span class="winrate-green">300</span> (Final)</td><td>---</td></tr>
+            </table>
+            <br>
+            <b>Regra do Jogo:</b><br>
+            • <b>Passo 1:</b> Jogo com Odd média <b>@1.50</b> (Over 1.5, BTTS, Win)<br>
+            • <b>Passo 2:</b> Jogo com Odd média <b>@1.34</b> (Double Chance, Over 1.5, Under 3.5)<br>
+            <i>O lucro do 1º jogo é reinvestido no 2º jogo para bater a dobra.</i>
+        </div>
+        """, unsafe_allow_html=True)
+        st.divider()
 
-                            for score in top_scores:
-                                h_s, a_s = map(int, score['Placar'].split('x'))
-                                if (h_s + a_s) >= 3: 
-                                    odd_placar = get_odd_justa(score['Prob'])
-                                    if odd_placar > 6.0: 
-                                        st.markdown(f"""
-                                        <div class="ticket-card" style="border-color: #9b59b6;">
-                                            <div class="ticket-header" style="color: #9b59b6;">🎯 PLACAR BOMBA: {score['Placar']}</div>
-                                            <div class="ticket-item">⚽ {home} x {away}</div>
-                                            <div class="ticket-item">💎 Probabilidade: {score['Prob']:.1f}%</div>
-                                            <div class="ticket-item">💰 Odd Estimada: @{odd_placar:.2f}</div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
-                                        if st.button(f"📤 Enviar Placar {home}", key=f"placar_{i}"):
-                                            enviar_telegram(f"🎯 *PLACAR OUSADO* 🎯\n\n⚽ {home} x {away}\n💎 Placar: {score['Placar']}\n💰 Odd Est: @{odd_placar:.2f}")
-                                        break
-                        except: continue
-                    if not found_zebra: st.info("Nenhuma oportunidade clara de Zebra hoje.")
+        if st.button("🔄 Gerar Ciclo do Dia"):
+            with st.spinner("Analisando Grade do Dia para encontrar a Combinação Perfeita..."):
+                step1_candidates = []
+                step2_candidates = []
+                
+                for i, row in df_today.iterrows():
+                    h, a = row['HomeTeam'], row['AwayTeam']
+                    # Busca Liga (mesma lógica da Grade)
+                    try: l = df_recent[df_recent['HomeTeam'] == h]['League_Custom'].mode()[0]
+                    except: 
+                        if h in df_recent['HomeTeam'].unique(): l = df_recent[df_recent['HomeTeam'] == h].iloc[-1]['League_Custom']
+                        else: continue
+                    
+                    xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, l, h, a)
+                    if xg_h is None: continue
+                    _, probs, _ = gerar_matriz_poisson(xg_h, xg_a)
+                    
+                    # --- FILTRO PASSO 1 (ODD ~1.50) ---
+                    # Over 1.5 (65-75%), BTTS (60-70%), Win (60-70%)
+                    if 0.65 <= probs['Over15'] <= 0.85:
+                        odd = 1/probs['Over15']
+                        if 1.40 <= odd <= 1.60:
+                            step1_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Over 1.5 Gols', 'Odd': odd, 'Prob': probs['Over15']})
+                    
+                    if 0.60 <= probs['BTTS'] <= 0.75:
+                        odd = 1/probs['BTTS']
+                        if 1.45 <= odd <= 1.65:
+                            step1_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Ambas Marcam', 'Odd': odd, 'Prob': probs['BTTS']})
+
+                    # --- FILTRO PASSO 2 (ODD ~1.34) ---
+                    # Over 1.5 (>75%), Under 3.5 (>75%), DC (>75%)
+                    if probs['Over15'] > 0.75:
+                        odd = 1/probs['Over15']
+                        if 1.25 <= odd <= 1.42:
+                            step2_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Over 1.5 Gols', 'Odd': odd, 'Prob': probs['Over15']})
+                            
+                    if probs['Under35'] > 0.75:
+                        odd = 1/probs['Under35']
+                        if 1.25 <= odd <= 1.42:
+                            step2_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Under 3.5 Gols', 'Odd': odd, 'Prob': probs['Under35']})
+                            
+                    prob_1x = probs['HomeWin'] + probs['Draw']
+                    if prob_1x > 0.75:
+                        odd = 1/prob_1x
+                        if 1.20 <= odd <= 1.40:
+                             step2_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Casa ou Empate', 'Odd': odd, 'Prob': prob_1x})
+
+                # --- GERAR COMBINAÇÃO ---
+                # Ordena pelos mais prováveis
+                step1_candidates.sort(key=lambda x: x['Prob'], reverse=True)
+                step2_candidates.sort(key=lambda x: x['Prob'], reverse=True)
+                
+                if step1_candidates and step2_candidates:
+                    # Pega o melhor de cada (garantindo jogos diferentes se possível)
+                    s1 = step1_candidates[0]
+                    s2 = step2_candidates[0]
+                    # Se for o mesmo jogo, tenta pegar o segundo melhor do step 2
+                    if s1['Jogo'] == s2['Jogo'] and len(step2_candidates) > 1:
+                        s2 = step2_candidates[1]
+                    
+                    final_odd = s1['Odd'] * s2['Odd'] # Não é acumulada, mas ilustrativa do ciclo
+                    
+                    st.success("✅ Ciclo Encontrado! (Siga a gestão)")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.markdown(f"""
+                        <div class="ticket-card">
+                            <div class="ticket-header">1️⃣ PASSO 1 (Stake Inicial)</div>
+                            <div class="ticket-item">⚽ {s1['Jogo']}</div>
+                            <div class="ticket-item">🎯 {s1['M']}</div>
+                            <div class="ticket-total">Odd Justa: @{s1['Odd']:.2f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                    with c2:
+                        st.markdown(f"""
+                        <div class="ticket-card" style="border-color: #2ea043;">
+                            <div class="ticket-header" style="color: #2ea043;">2️⃣ PASSO 2 (All-in Lucro)</div>
+                            <div class="ticket-item">⚽ {s2['Jogo']}</div>
+                            <div class="ticket-item">🎯 {s2['M']}</div>
+                            <div class="ticket-total" style="color: #2ea043;">Odd Justa: @{s2['Odd']:.2f}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    if st.button("📤 Enviar Ciclo para Telegram"):
+                        msg = f"🚀 *CICLO DE ALAVANCAGEM* 🚀\n\n1️⃣ *PASSO 1* (Odd ~1.50)\n⚽ {s1['Jogo']}\n🎯 {s1['M']}\n\n2️⃣ *PASSO 2* (Odd ~1.34)\n⚽ {s2['Jogo']}\n🎯 {s2['M']}\n\n🍀 *Objetivo:* Dobrar a Stake do Ciclo!"
+                        if enviar_telegram(msg): st.success("Enviado!")
+                else:
+                    st.warning("Não foram encontrados jogos com as probabilidades exatas para formar o ciclo hoje.")
 
     # 7. ANALISADOR DE TIMES
     elif menu == "🔎 Analisador de Times":
