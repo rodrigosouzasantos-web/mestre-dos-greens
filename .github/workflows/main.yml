@@ -1,14 +1,16 @@
-name: Robô Mestre dos Greens (Diário)
+name: Robô Mestre dos Greens (Alavancagem)
 
 on:
   schedule:
-    # Horários UTC:
+    # Horários em UTC (Brasil é UTC-3)
+    # 09:00 UTC = 06:00 Brasil
     # 12:00 UTC = 09:00 Brasil
-    # 13:00 UTC = 10:00 Brasil
     # 15:00 UTC = 12:00 Brasil
-    - cron: '0 12,13,15 * * *'
+    # 18:00 UTC = 15:00 Brasil
+    # 21:00 UTC = 18:00 Brasil
+    - cron: '0 9,12,15,18,21 * * *'
 
-  workflow_dispatch: # Permite rodar manualmente para testar
+  workflow_dispatch: # Permite rodar manualmente (botão Run workflow)
 
 jobs:
   build:
@@ -25,7 +27,10 @@ jobs:
 
       - name: Instalar bibliotecas
         run: |
-          pip install -r requirements.txt
+          pip install pandas requests scipy plotly
 
       - name: Rodar o Robô
+        env: 
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python app.py
