@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.9 (Final Fixed)",
+    page_title="Mestre dos Greens PRO - V66.9.1 (Final Dashboard)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -102,7 +102,7 @@ st.markdown("""
     
     /* Tabela Alavancagem */
     .alavancagem-table {
-        font-size: 16px;
+        font-size: 14px;
         color: #e6edf3;
         border-collapse: collapse;
         width: 100%;
@@ -145,7 +145,6 @@ def get_odd_justa(prob):
 # ==============================================================================
 @st.cache_data(ttl=3600)
 def load_data():
-    # LISTAS DEFINIDAS AQUI PARA SEGURANÇA
     URLS_HISTORICAS = {
         "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
         "Belgica Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Belgium_Pro_League_2016-2025.csv",
@@ -209,7 +208,7 @@ def load_data():
         "USA_Major_League_Soccer_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
         "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
     }
-
+    
     URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/todays_matches/todays_matches.csv"
 
     all_dfs = []
@@ -283,7 +282,7 @@ def load_data():
     # 3. Dataframe SÓ da Temporada Atual (Para Standings)
     df_current_season = pd.concat(current_season_dfs, ignore_index=True) if current_season_dfs else pd.DataFrame()
     
-    # 4. Jogos de Hoje
+    # 4. Jogos de Hoje (COM O AJUSTE DE DATA/HORA)
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
@@ -312,45 +311,8 @@ def load_data():
     return df_recent, df_today, full_df, df_current_season
 
 # ==============================================================================
-# CÁLCULOS PONDERADOS
+# MOTOR DE CLASSIFICAÇÃO (CÁLCULO REAL)
 # ==============================================================================
-def get_weighted_avg(full_df, venue_df, col_name):
-    w_geral = full_df[col_name].mean()
-    w_venue = venue_df[col_name].mean() if not venue_df.empty else w_geral
-    w_10 = full_df.tail(10)[col_name].mean()
-    w_5 = full_df.tail(5)[col_name].mean()
-    return (w_geral * 0.10) + (w_venue * 0.40) + (w_10 * 0.20) + (w_5 * 0.30)
-
-def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_goal='FTHG', col_away_goal='FTAG'):
-    # Lógica de Busca Inteligente
-    if league:
-        df_league = df_historico[df_historico['League_Custom'] == league]
-    else:
-        df_league = df_historico
-        
-    if df_league.empty: return None, None, None, None
-    avg_goals_home = df_league[col_home_goal].mean()
-    avg_goals_away = df_league[col_away_goal].mean()
-    
-    df_h_all = df_historico[(df_historico['HomeTeam'] == team_home) | (df_historico['AwayTeam'] == team_home)].sort_values('Date')
-    df_a_all = df_historico[(df_historico['HomeTeam'] == team_away) | (df_historico['AwayTeam'] == team_away)].sort_values('Date')
-    df_h = df_historico[df_historico['HomeTeam'] == team_home].sort_values('Date')
-    df_a = df_historico[df_historico['AwayTeam'] == team_away].sort_values('Date')
-    
-    if len(df_h_all) < 5 or len(df_a_all) < 5: return None, None, None, None
-    
-    att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
-    strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
-    def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
-    strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
-    xg_home = strength_att_h * strength_def_a * avg_goals_home
-    att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
-    strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
-    def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
-    strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
-    xg_away = strength_att_a * strength_def_h * avg_goals_away
-    return xg_home, xg_away, strength_att_h, strength_att_a
-
 def calculate_standings(df_league_matches):
     if df_league_matches.empty: return pd.DataFrame()
     teams = {}
@@ -370,6 +332,44 @@ def calculate_standings(df_league_matches):
     df_rank = df_rank.sort_values(by=['Pts', 'GD', 'GF'], ascending=False).reset_index(drop=True)
     df_rank.index += 1; df_rank['Rank'] = df_rank.index
     return df_rank
+
+# ==============================================================================
+# CÁLCULOS PONDERADOS
+# ==============================================================================
+def get_weighted_avg(full_df, venue_df, col_name):
+    w_geral = full_df[col_name].mean()
+    w_venue = venue_df[col_name].mean() if not venue_df.empty else w_geral
+    w_10 = full_df.tail(10)[col_name].mean()
+    w_5 = full_df.tail(5)[col_name].mean()
+    return (w_geral * 0.10) + (w_venue * 0.40) + (w_10 * 0.20) + (w_5 * 0.30)
+
+def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_goal='FTHG', col_away_goal='FTAG'):
+    if league:
+        df_league = df_historico[df_historico['League_Custom'] == league]
+    else:
+        df_league = df_historico
+        
+    if df_league.empty: return None, None, None, None
+    avg_goals_home = df_league[col_home_goal].mean()
+    avg_goals_away = df_league[col_away_goal].mean()
+    
+    df_h_all = df_historico[(df_historico['HomeTeam'] == team_home) | (df_historico['AwayTeam'] == team_home)].sort_values('Date')
+    df_a_all = df_historico[(df_historico['HomeTeam'] == team_away) | (df_historico['AwayTeam'] == team_away)].sort_values('Date')
+    df_h = df_historico[df_historico['HomeTeam'] == team_home].sort_values('Date')
+    df_a = df_historico[df_historico['AwayTeam'] == team_away].sort_values('Date')
+    
+    if len(df_h_all) < 5 or len(df_a_all) < 5: return None, None, None, None
+    att_h_pond = get_weighted_avg(df_h_all, df_h, col_home_goal)
+    strength_att_h = att_h_pond / avg_goals_home if avg_goals_home > 0 else 1.0
+    def_a_pond = get_weighted_avg(df_a_all, df_a, col_home_goal)
+    strength_def_a = def_a_pond / avg_goals_home if avg_goals_home > 0 else 1.0
+    xg_home = strength_att_h * strength_def_a * avg_goals_home
+    att_a_pond = get_weighted_avg(df_a_all, df_a, col_away_goal)
+    strength_att_a = att_a_pond / avg_goals_away if avg_goals_away > 0 else 1.0
+    def_h_pond = get_weighted_avg(df_h_all, df_h, col_away_goal)
+    strength_def_h = def_h_pond / avg_goals_away if avg_goals_away > 0 else 1.0
+    xg_away = strength_att_a * strength_def_h * avg_goals_away
+    return xg_home, xg_away, strength_att_h, strength_att_a
 
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
@@ -406,8 +406,45 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict, top_scores
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    fig = go.Figure(data=go.Heatmap(z=matriz, x=['0','1','2','3','4','5+'], y=['0','1','2','3','4','5+'], text=matriz, texttemplate="<b>%{z:.1f}%</b>", colorscale=[[0,'#161b22'],[1,'#f1c40f']], showscale=False))
-    fig.update_layout(title="🎲 Placar Exato", xaxis=dict(side="top"), yaxis=dict(autorange='reversed'), height=400, margin=dict(t=50, l=50, r=50, b=50), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
+    # Labels para os eixos (0 a 5)
+    labels = ['0', '1', '2', '3', '4', '5']
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=matriz,
+        x=labels, # Visitante (Topo)
+        y=labels, # Mandante (Esquerda)
+        text=matriz,
+        texttemplate="<b>%{z:.1f}%</b>",
+        colorscale=[[0, '#161b22'], [1, '#f1c40f']],
+        showscale=False
+    ))
+    
+    fig.update_layout(
+        title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)),
+        xaxis=dict(
+            title=f"<b>{away_name}</b> (Visitante)",
+            side="top",
+            tickmode='array',
+            tickvals=[0, 1, 2, 3, 4, 5],
+            ticktext=labels,
+            tickfont=dict(color='#cfcfcf', size=14),
+            fixedrange=True
+        ),
+        yaxis=dict(
+            title=f"<b>{home_name}</b> (Mandante)",
+            tickmode='array',
+            tickvals=[0, 1, 2, 3, 4, 5],
+            ticktext=labels,
+            tickfont=dict(color='#cfcfcf', size=14),
+            autorange='reversed', # 0 no topo
+            fixedrange=True
+        ),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=500,
+        margin=dict(t=80, l=80, r=20, b=60),
+        font=dict(color='white')
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 # ==============================================================================
