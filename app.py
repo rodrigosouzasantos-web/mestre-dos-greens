@@ -9,12 +9,13 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # ⚙️ CONFIGURAÇÕES DO ROBÔ
 # ==============================================================================
-# Deixe assim no código público. O GitHub vai preencher com os Secrets.
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN") 
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-# Horários que o robô pode trabalhar (ex: das 09h às 20h)
-HORA_INICIO = 9
-HORA_FIM = 20
+# Se você já configurou os Secrets no GitHub, pode deixar assim:
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8571442533:AAFbqfHsE1oTdwt2yarJGFpqWgST3-UIUwA")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-1003590805331")
+
+# Horários que o robô pode trabalhar (ex: das 08h às 21h)
+HORA_INICIO = 8
+HORA_FIM = 21
 
 # Nome do arquivo para evitar duplicidade (memória do robô)
 ARQUIVO_CONTROLE = "controle_envios.txt"
