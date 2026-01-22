@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.6 (Alavancagem Pro)",
+    page_title="Mestre dos Greens PRO - V66.8 (Golden Master)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -116,6 +116,7 @@ st.markdown("""
         background-color: #161b22;
         color: #f1c40f;
     }
+    .winrate-green { color: #2ea043; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -170,38 +171,6 @@ URLS_HISTORICAS = {
     "Sweden Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
     "Turquia Super Lig": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
     "USA MLS": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
-    "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
-}
-
-URLS_ATUAIS = {
-    "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Argentina_Primera_Divisi%C3%B3n_2025.csv",
-    "Belgica Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Belgium_Pro_League_2025-2026.csv",
-    "Brasileirao Serie A": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Brasileir%C3%A3o_S%C3%A9rie_A_2025-2026.csv",
-    "Colombia Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Colombia_Primera_Liga_2025.csv",
-    "Croacia HNL": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Croatia_HNL_2025-2026.csv",
-    "Dinamarca Superliga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Denmark_Superliga_2025-2026.csv",
-    "Inglaterra Premier League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/England_Premier_League_2025-2026.csv",
-    "Finlandia Veikkausliiga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Finland_Veikkausliiga_2025.csv",
-    "Franca Ligue 1": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/France_Ligue_1_2025-2026.csv",
-    "Alemanha Bundesliga 1": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Germany_Bundesliga_2025-2026.csv",
-    "Alemanha Bundesliga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Germany_Bundesliga_2_2025-2026.csv",
-    "Grecia Super League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Greece_Super_League_2025-2026.csv",
-    "Italia Serie A": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_A_2025-2026.csv",
-    "Italia Serie B": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_B_2025-2026.csv",
-    "Japao J1 League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Japan_J1_League_2025.csv",
-    "LigaPro_Portugal_2a_división_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
-    "Liga_Portugal_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
-    "Mexico_Liga_MX_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
-    "Netherlands_Eredivisie_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Netherlands_Eredivisie_2025-2026.csv",
-    "Norway_Eliteserien_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Norway_Eliteserien_2025.csv",
-    "Russian_Premier_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Russian_Premier_League_2025-2026.csv",
-    "Saudi_Pro_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Saudi_Pro_League_2025-2026.csv",
-    "South_Korea_K_League_1_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/South_Korea_K_League_1_2025.csv",
-    "Spain_La_Liga_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_La_Liga_2025-2026.csv",
-    "Spain_Segunda_División_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2025-2026.csv",
-    "Sweden Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
-    "Turkey_Süper_Lig_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
-    "USA_Major_League_Soccer_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
     "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
 }
 
@@ -263,8 +232,7 @@ def load_data():
             df['HomeWin'] = (df['FTHG'] > df['FTAG']).astype(int)
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
             df['League_Custom'] = name
-            df['Season_Type'] = 'Current' # TAG IMPORTANTE
-            
+            df['Season_Type'] = 'Current' 
             clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']]
             if 'HomeTeam' in df.columns: 
                 all_dfs.append(clean_df)
@@ -281,12 +249,25 @@ def load_data():
     # 3. Dataframe SÓ da Temporada Atual (Para Standings)
     df_current_season = pd.concat(current_season_dfs, ignore_index=True) if current_season_dfs else pd.DataFrame()
     
-    # 4. Jogos de Hoje
+    # 4. Jogos de Hoje (COM AJUSTE DE HORA V66.7)
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
         if 'HomeTeam' not in df_today.columns: df_today['HomeTeam'], df_today['AwayTeam'] = df_today.iloc[:, 0], df_today.iloc[:, 1]
+        
+        # --- AJUSTE DE FUSO HORÁRIO (UTC PARA BRASIL -3h) ---
+        if 'date_unix' in df_today.columns:
+            df_today['match_time'] = pd.to_datetime(df_today['date_unix'], unit='s') - pd.Timedelta(hours=3)
+        elif 'date' in df_today.columns:
+            df_today['match_time'] = pd.to_datetime(df_today['date']) - pd.Timedelta(hours=3)
+        else:
+            df_today['match_time'] = datetime.now()
+            
+        df_today['Hora'] = df_today['match_time'].dt.strftime('%H:%M')
+        df_today = df_today.sort_values('match_time')
+        # -----------------------------------------------------
+
         cols_odds = ['odds_ft_1', 'odds_ft_x', 'odds_ft_2', 'odds_ft_over25', 'odds_btts_yes', 'odds_ft_over15', 'odds_1st_half_over05', 'odds_corners_over_95']
         for c in cols_odds:
             if c not in df_today.columns: df_today[c] = 0.0
@@ -427,15 +408,14 @@ def gerar_matriz_poisson(xg_home, xg_away):
     return matrix, probs_dict, top_scores
 
 def exibir_matriz_visual(matriz, home_name, away_name):
-    colorscale = [[0, '#161b22'], [0.3, '#1f2937'], [0.6, '#d4ac0d'], [1, '#f1c40f']]
-    x_labels = ['0', '1', '2', '3', '4', '5+']
-    y_labels = ['0', '1', '2', '3', '4', '5+']
-    fig = go.Figure(data=go.Heatmap(z=matriz, x=x_labels, y=y_labels, text=matriz, texttemplate="<b>%{z:.1f}%</b>", textfont={"size":16, "color":"white"}, colorscale=colorscale, showscale=False))
-    fig.update_layout(title=dict(text="🎲 Matriz de Probabilidades (Placar Exato)", font=dict(color='#f1c40f', size=20)), xaxis=dict(side="top", title=None, tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category'), yaxis=dict(side="left", title=f"<b>{home_name}</b> (Mandante)", title_font=dict(size=18, color='#fff'), tickfont=dict(color='#cfcfcf', size=14), fixedrange=True, type='category', autorange='reversed'), annotations=[dict(x=0.5, y=-0.15, xref='paper', yref='paper', text=f"<b>{away_name}</b> (Visitante)", showarrow=False, font=dict(size=18, color='#fff'))], paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=500, margin=dict(t=80, l=80, r=20, b=60))
+    fig = go.Figure(data=go.Heatmap(z=matriz, x=['0','1','2','3','4','5+'], y=['0','1','2','3','4','5+'], text=matriz, texttemplate="<b>%{z:.1f}%</b>", colorscale=[[0,'#161b22'],[1,'#f1c40f']], showscale=False))
+    fig.update_layout(title="🎲 Placar Exato", xaxis=dict(side="top"), yaxis=dict(autorange='reversed'), height=400, margin=dict(t=50, l=50, r=50, b=50), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
     st.plotly_chart(fig, use_container_width=True)
 
-# --- APP PRINCIPAL ---
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.6 (Alavancagem Pro)")
+# ==============================================================================
+# APP PRINCIPAL
+# ==============================================================================
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.8 (Golden Master)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -449,16 +429,17 @@ if not df_recent.empty:
         st.rerun()
     st.sidebar.markdown("---")
         
-    st.sidebar.markdown("## 🧭 Navegação")
     menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia", "📊 Winrate & Assertividade", "🏆 Classificação", "⚔️ Simulador Manual", "🎫 Bilhetes Prontos", "🚀 Alavancagem", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
-    # 1. GRADE DO DIA
+    # 1. GRADE DO DIA (COM AJUSTE DE HORA E BUSCA INTELIGENTE)
     if menu == "🎯 Grade do Dia":
         st.header("🎯 Grade do Dia")
         if not df_today.empty:
-            jogos_hoje = [f"{row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
+            jogos_hoje = [f"{row['Hora']} ⏰ {row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
             jogo_selecionado = st.selectbox("👉 Selecione um jogo:", jogos_hoje, index=0)
-            times = jogo_selecionado.split(" x ")
+            
+            clean_selection = jogo_selecionado.split(" ⏰ ")[1]
+            times = clean_selection.split(" x ")
             home_sel, away_sel = times[0], times[1]
             
             # TENTATIVA 1: Busca pela liga exata
@@ -468,7 +449,6 @@ if not df_recent.empty:
             except:
                 # TENTATIVA 2: Se falhar, tenta achar o time em qualquer liga
                 if home_sel in df_recent['HomeTeam'].unique():
-                    # Pega a última liga onde esse time jogou
                     liga_match = df_recent[df_recent['HomeTeam'] == home_sel].iloc[-1]['League_Custom']
             
             # INFO DE CLASSIFICAÇÃO
@@ -493,7 +473,7 @@ if not df_recent.empty:
                     if must_win_msg: st.warning(must_win_msg)
                 except: pass
 
-            # CÁLCULO DE PROBABILIDADES (Mesmo se não achar a liga, tenta calcular com base geral)
+            # CÁLCULO DE PROBABILIDADES
             xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'FTHG', 'FTAG')
             xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, liga_match, home_sel, away_sel, 'HTHG', 'HTAG')
             exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
@@ -548,7 +528,7 @@ if not df_recent.empty:
             else: st.warning("Dados insuficientes para análise estatística deste confronto (Times novos ou sem histórico recente).")
         else: st.info("Aguardando jogos...")
 
-    # 2. WINRATE (ATUALIZADO V66.5 - DETALHADO + CALENDÁRIO)
+    # 2. WINRATE (BUSCA INTELIGENTE COM DATA)
     elif menu == "📊 Winrate & Assertividade":
         st.header("📊 Assertividade do Robô (Backtest Detalhado)")
         
@@ -808,11 +788,10 @@ if not df_recent.empty:
                             break
                     if not found_tripla: st.warning("Nenhuma Tripla ideal encontrada.")
 
-    # 6. ALAVANCAGEM (NOVA VERSÃO - V66.6)
+    # 6. ALAVANCAGEM (V66.6 - CICLOS)
     elif menu == "🚀 Alavancagem":
         st.header("🚀 Alavancagem Pro (Gestão de Ciclos)")
         
-        # --- PAINEL DE GESTÃO (INFO) ---
         st.markdown("""
         <div class="metric-card" style="text-align: left;">
             <h3 style="color: #f1c40f; margin-top: 0;">💎 Modelo de Alavancagem com Proteção</h3>
@@ -885,19 +864,13 @@ if not df_recent.empty:
                              step2_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Casa ou Empate', 'Odd': odd, 'Prob': prob_1x})
 
                 # --- GERAR COMBINAÇÃO ---
-                # Ordena pelos mais prováveis
                 step1_candidates.sort(key=lambda x: x['Prob'], reverse=True)
                 step2_candidates.sort(key=lambda x: x['Prob'], reverse=True)
                 
                 if step1_candidates and step2_candidates:
-                    # Pega o melhor de cada (garantindo jogos diferentes se possível)
                     s1 = step1_candidates[0]
                     s2 = step2_candidates[0]
-                    # Se for o mesmo jogo, tenta pegar o segundo melhor do step 2
-                    if s1['Jogo'] == s2['Jogo'] and len(step2_candidates) > 1:
-                        s2 = step2_candidates[1]
-                    
-                    final_odd = s1['Odd'] * s2['Odd'] # Não é acumulada, mas ilustrativa do ciclo
+                    if s1['Jogo'] == s2['Jogo'] and len(step2_candidates) > 1: s2 = step2_candidates[1]
                     
                     st.success("✅ Ciclo Encontrado! (Siga a gestão)")
                     
