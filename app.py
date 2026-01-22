@@ -165,7 +165,7 @@ def calcular_probs(xg_h, xg_a):
     return probs
 
 # ==============================================================================
-# 🚀 MOTOR DE CICLO 
+# 🚀 MOTOR DE CICLO E NOTIFICAÇÃO
 # ==============================================================================
 def analisar_e_enviar():
     # Data Brasil (UTC-3)
@@ -180,16 +180,25 @@ def analisar_e_enviar():
         print(f"💤 Fora do horário de operação (Agora são {hora_atual}h).")
         return
 
-    # 2. Verifica Arquivo de Controle
+    # 2. Verifica Arquivo de Controle (Se já mandou algo hoje, não manda mais)
     if verificar_se_ja_enviou_hoje():
-        print("✅ Ciclo de hoje já foi enviado. Aguardando amanhã.")
+        print("✅ Relatório de hoje já foi enviado. Aguardando amanhã.")
         return
 
     # 3. Executa Análise
     df_recent, df_today = load_data_robot()
     
+    # --- CENÁRIO 1: BASE VAZIA ---
     if df_today.empty: 
-        print("⚠️ Sem jogos na grade carregada.")
+        msg_vazia = (
+            f"🦅 *ALERTA OFICIAL: SEM JOGOS* 🦅\n\n"
+            f"🗓️ *{data_hoje_brasil.strftime('%d/%m/%Y')}*\n\n"
+            f"⚠️ A grade de jogos de hoje está vazia ou ainda não foi atualizada.\n\n"
+            f"O robô voltará a verificar amanhã."
+        )
+        print("⚠️ Sem jogos na grade. Enviando aviso...")
+        enviar_telegram(msg_vazia)
+        registrar_envio() # Marca como enviado para não repetir
         return
     
     step1_candidates = []
@@ -212,7 +221,7 @@ def analisar_e_enviar():
         if xg_h is None: continue
         probs = calcular_probs(xg_h, xg_a)
         
-        # --- CRITÉRIOS DE ODDS ---
+        # --- CRITÉRIOS DE ODDS (V66.9) ---
         # Step 1: 1.40 - 1.60
         if 0.60 <= probs['Over15'] <= 0.75:
             step1_candidates.append({'Jogo': f"{home}x{away}", 'Hora': hora, 'Tipo': 'Over 1.5', 'Odd': 1/probs['Over15'], 'Prob': probs['Over15']})
@@ -230,7 +239,20 @@ def analisar_e_enviar():
 
     print(f"🔎 Jogos confirmados para HOJE ({data_hoje_brasil}): {jogos_analisados_hoje}")
 
-    # --- DISPARO ---
+    # --- CENÁRIO 2: TEM JOGOS, MAS SEM OPORTUNIDADE ---
+    if jogos_analisados_hoje == 0:
+        # Se tinha linhas no CSV, mas nenhuma era data de HOJE
+        msg_sem_hoje = (
+            f"🦅 *ALERTA OFICIAL: DATA VAZIA* 🦅\n\n"
+            f"🗓️ *{data_hoje_brasil.strftime('%d/%m/%Y')}*\n\n"
+            f"⚠️ A base de dados tem jogos, mas nenhum está agendado para a data de hoje.\n"
+            f"Voltaremos amanhã."
+        )
+        enviar_telegram(msg_sem_hoje)
+        registrar_envio()
+        return
+
+    # --- CENÁRIO 3: CICLO ENCONTRADO (SUCESSO) ---
     if step1_candidates and step2_candidates:
         step1_candidates.sort(key=lambda x: x['Prob'], reverse=True)
         step2_candidates.sort(key=lambda x: x['Prob'], reverse=True)
@@ -241,7 +263,7 @@ def analisar_e_enviar():
         if s1['Jogo'] == s2['Jogo'] and len(step2_candidates) > 1:
             s2 = step2_candidates[1]
         
-        msg = (
+        msg_sucesso = (
             f"🦅 *ALERTA OFICIAL: CICLO DO DIA* 🦅\n\n"
             f"🗓️ *{data_hoje_brasil.strftime('%d/%m/%Y')}*\n\n"
             f"1️⃣ *PASSO 1* (Odd ~{s1['Odd']:.2f})\n"
@@ -256,15 +278,24 @@ def analisar_e_enviar():
             f"🍀 *Boa sorte!*"
         )
         
-        sucesso = enviar_telegram(msg)
-        if sucesso:
-            registrar_envio()
-            print("🚀 Ciclo enviado e registrado!")
+        enviar_telegram(msg_sucesso)
+        registrar_envio()
+        print("🚀 Ciclo enviado e registrado!")
+        
+    # --- CENÁRIO 4: TEM JOGO HOJE, MAS NENHUM BATE A ODD ---
     else:
-        print("❌ Nenhum ciclo ideal encontrado para HOJE.")
+        msg_falha = (
+            f"🦅 *ALERTA OFICIAL: SEM OPORTUNIDADES* 🦅\n\n"
+            f"🗓️ *{data_hoje_brasil.strftime('%d/%m/%Y')}*\n\n"
+            f"❌ O robô analisou {jogos_analisados_hoje} jogos de hoje, mas nenhum bateu os critérios matemáticos de Alavancagem com segurança.\n\n"
+            f"🛡️ *Proteção:* Hoje é dia de descansar a banca. Não force entradas!"
+        )
+        enviar_telegram(msg_falha)
+        registrar_envio()
+        print("❌ Aviso de 'Sem Oportunidades' enviado.")
 
 # ==============================================================================
-# 🚀 EXECUÇÃO
+# 🚀 EXECUÇÃO (MODO GITHUB ACTIONS)
 # ==============================================================================
 if __name__ == "__main__":
     print("🤖 Iniciando Verificação Única do Robô...")
