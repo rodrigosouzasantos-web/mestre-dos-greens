@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # ⚙️ CONFIGURAÇÕES DO ROBÔ
 # ==============================================================================
-# Versão LIMPA (sem espaços ocultos)
+# Tenta pegar dos Segredos do GitHub (Variáveis de Ambiente)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8571442533:AAFbqfHsE1oTdwt2yarJGFpqWgST3-UIUwA")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-1003590805331")
 
@@ -17,12 +17,14 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-1003590805331")
 HORA_INICIO = 8
 HORA_FIM = 22
 
-# Nome do arquivo de memória
+# Nome do arquivo de memória (para não repetir envio no mesmo dia)
 ARQUIVO_CONTROLE = "controle_envios.txt"
 
 def verificar_se_ja_enviou_hoje():
     """Verifica no arquivo se já houve envio na data de hoje"""
-    hoje = datetime.now().strftime("%Y-%m-%d")
+    # Garante a data do Brasil
+    hoje = (datetime.utcnow() - timedelta(hours=3)).strftime("%Y-%m-%d")
+    
     if not os.path.exists(ARQUIVO_CONTROLE):
         return False
     
@@ -33,7 +35,7 @@ def verificar_se_ja_enviou_hoje():
 
 def registrar_envio():
     """Salva a data de hoje para não enviar mais"""
-    hoje = datetime.now().strftime("%Y-%m-%d")
+    hoje = (datetime.utcnow() - timedelta(hours=3)).strftime("%Y-%m-%d")
     with open(ARQUIVO_CONTROLE, "w") as f:
         f.write(hoje)
 
@@ -103,13 +105,15 @@ def load_data_robot():
         df_today = pd.read_csv(io.StringIO(r_today.content.decode('utf-8')))
         df_today.columns = [c.strip().lower() for c in df_today.columns]
         df_today.rename(columns={'home_name':'HomeTeam','away_name':'AwayTeam','league':'League','time':'Time'}, inplace=True)
+        
         # Fuso Brasil -3
         if 'date_unix' in df_today.columns:
             df_today['match_time'] = pd.to_datetime(df_today['date_unix'], unit='s') - timedelta(hours=3)
         elif 'date' in df_today.columns:
             df_today['match_time'] = pd.to_datetime(df_today['date']) - timedelta(hours=3)
         else:
-            df_today['match_time'] = datetime.now()
+            df_today['match_time'] = datetime.now() - timedelta(hours=3)
+            
     except: df_today = pd.DataFrame()
 
     return df_recent, df_today
@@ -161,19 +165,22 @@ def calcular_probs(xg_h, xg_a):
     return probs
 
 # ==============================================================================
-# 🚀 MOTOR DE CICLO (CORRIGIDO: NOME DA FUNÇÃO UNIFICADO)
+# 🚀 MOTOR DE CICLO 
 # ==============================================================================
 def analisar_e_enviar():
-    print(f"⏰ Verificando rotina: {datetime.now().strftime('%H:%M:%S')}")
+    # Data Brasil (UTC-3)
+    agora_brasil = datetime.utcnow() - timedelta(hours=3)
+    data_hoje_brasil = agora_brasil.date()
     
-    # 1. Verifica Horário de Trabalho
-    # No GitHub o fuso pode ser UTC, então vamos garantir o ajuste
-    hora_atual = (datetime.now() - timedelta(hours=3)).hour
+    print(f"⏰ Verificando rotina: {agora_brasil.strftime('%H:%M:%S')} (Data BR: {data_hoje_brasil})")
+    
+    # 1. Verifica Horário
+    hora_atual = agora_brasil.hour
     if hora_atual < HORA_INICIO or hora_atual > HORA_FIM:
         print(f"💤 Fora do horário de operação (Agora são {hora_atual}h).")
         return
 
-    # 2. Verifica se já enviou hoje
+    # 2. Verifica Arquivo de Controle
     if verificar_se_ja_enviou_hoje():
         print("✅ Ciclo de hoje já foi enviado. Aguardando amanhã.")
         return
@@ -182,13 +189,22 @@ def analisar_e_enviar():
     df_recent, df_today = load_data_robot()
     
     if df_today.empty: 
-        print("⚠️ Sem jogos na grade hoje.")
+        print("⚠️ Sem jogos na grade carregada.")
         return
     
     step1_candidates = []
     step2_candidates = []
     
+    jogos_analisados_hoje = 0
+    
     for i, row in df_today.iterrows():
+        # --- FILTRO DE DATA RIGOROSO ---
+        data_jogo = row['match_time'].date()
+        if data_jogo != data_hoje_brasil:
+            continue # Pula se o jogo não for hoje
+            
+        jogos_analisados_hoje += 1
+        
         home, away = row['HomeTeam'], row['AwayTeam']
         hora = row['match_time'].strftime('%H:%M')
         
@@ -212,6 +228,8 @@ def analisar_e_enviar():
         if prob_1x > 0.70:
              step2_candidates.append({'Jogo': f"{home}x{away}", 'Hora': hora, 'Tipo': '1X', 'Odd': 1/prob_1x, 'Prob': prob_1x})
 
+    print(f"🔎 Jogos confirmados para HOJE ({data_hoje_brasil}): {jogos_analisados_hoje}")
+
     # --- DISPARO ---
     if step1_candidates and step2_candidates:
         step1_candidates.sort(key=lambda x: x['Prob'], reverse=True)
@@ -225,7 +243,7 @@ def analisar_e_enviar():
         
         msg = (
             f"🦅 *ALERTA OFICIAL: CICLO DO DIA* 🦅\n\n"
-            f"🗓️ *{datetime.now().strftime('%d/%m/%Y')}*\n\n"
+            f"🗓️ *{data_hoje_brasil.strftime('%d/%m/%Y')}*\n\n"
             f"1️⃣ *PASSO 1* (Odd ~{s1['Odd']:.2f})\n"
             f"⚽ {s1['Jogo']} ({s1['Hora']})\n"
             f"🎯 *{s1['Tipo']}*\n"
@@ -243,15 +261,12 @@ def analisar_e_enviar():
             registrar_envio()
             print("🚀 Ciclo enviado e registrado!")
     else:
-        print("❌ Nenhum ciclo ideal encontrado nesta rodada.")
+        print("❌ Nenhum ciclo ideal encontrado para HOJE.")
 
 # ==============================================================================
-# 🚀 EXECUÇÃO (MODO GITHUB ACTIONS)
+# 🚀 EXECUÇÃO
 # ==============================================================================
 if __name__ == "__main__":
     print("🤖 Iniciando Verificação Única do Robô...")
-    
-    # AGORA A FUNÇÃO ESTÁ DEFINIDA CORRETAMENTE ACIMA
     analisar_e_enviar() 
-    
     print("🏁 Verificação concluída. Encerrando.")
