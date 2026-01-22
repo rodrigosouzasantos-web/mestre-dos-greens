@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # ⚙️ CONFIGURAÇÕES DO ROBÔ
 # ==============================================================================
-TELEGRAM_TOKEN = "SEU_TOKEN_AQUI" 
-TELEGRAM_CHAT_ID = "SEU_CHAT_ID_AQUI"
+TELEGRAM_TOKEN = "8571442533:AAFbqfHsE1oTdwt2yarJGFpqWgST3-UIUwA" 
+TELEGRAM_CHAT_ID = "-1003590805331"
 
 # Horários que o robô pode trabalhar (ex: das 09h às 20h)
 HORA_INICIO = 9
