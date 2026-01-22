@@ -9,15 +9,16 @@ from datetime import datetime, timedelta
 # ==============================================================================
 # ⚙️ CONFIGURAÇÕES DO ROBÔ
 # ==============================================================================
-# Se você já configurou os Secrets no GitHub, pode deixar assim:
+# Tenta pegar dos Segredos do GitHub (Variáveis de Ambiente)
+# Se não achar, usa os valores padrão (coloque seus dados ali por garantia)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8571442533:AAFbqfHsE1oTdwt2yarJGFpqWgST3-UIUwA")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-1003590805331")
 
-# Horários que o robô pode trabalhar (ex: das 08h às 21h)
+# Horários que o robô pode trabalhar (Brasil)
 HORA_INICIO = 8
-HORA_FIM = 21
+HORA_FIM = 22
 
-# Nome do arquivo para evitar duplicidade (memória do robô)
+# Nome do arquivo de memória
 ARQUIVO_CONTROLE = "controle_envios.txt"
 
 def verificar_se_ja_enviou_hoje():
@@ -39,7 +40,7 @@ def registrar_envio():
 
 def enviar_telegram(mensagem):
     if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        print("⚠️ Configuração de Telegram ausente.")
+        print("⚠️ Erro: Token ou Chat ID não configurados.")
         return False
     
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -58,7 +59,7 @@ def enviar_telegram(mensagem):
         return False
 
 # ==============================================================================
-# 📂 NÚCLEO DE DADOS (Mesma lógica V66.8)
+# 📂 NÚCLEO DE DADOS
 # ==============================================================================
 def load_data_robot():
     print("📥 Baixando dados atualizados...")
@@ -106,6 +107,8 @@ def load_data_robot():
         # Fuso Brasil -3
         if 'date_unix' in df_today.columns:
             df_today['match_time'] = pd.to_datetime(df_today['date_unix'], unit='s') - timedelta(hours=3)
+        elif 'date' in df_today.columns:
+            df_today['match_time'] = pd.to_datetime(df_today['date']) - timedelta(hours=3)
         else:
             df_today['match_time'] = datetime.now()
     except: df_today = pd.DataFrame()
@@ -159,15 +162,16 @@ def calcular_probs(xg_h, xg_a):
     return probs
 
 # ==============================================================================
-# 🚀 MOTOR DE CICLO 
+# 🚀 MOTOR DE CICLO (CORRIGIDO: NOME DA FUNÇÃO UNIFICADO)
 # ==============================================================================
-def job():
+def analisar_e_enviar():
     print(f"⏰ Verificando rotina: {datetime.now().strftime('%H:%M:%S')}")
     
     # 1. Verifica Horário de Trabalho
-    hora_atual = datetime.now().hour
+    # No GitHub o fuso pode ser UTC, então vamos garantir o ajuste
+    hora_atual = (datetime.now() - timedelta(hours=3)).hour
     if hora_atual < HORA_INICIO or hora_atual > HORA_FIM:
-        print("💤 Fora do horário de operação.")
+        print(f"💤 Fora do horário de operação (Agora são {hora_atual}h).")
         return
 
     # 2. Verifica se já enviou hoje
@@ -177,7 +181,10 @@ def job():
 
     # 3. Executa Análise
     df_recent, df_today = load_data_robot()
-    if df_today.empty: return
+    
+    if df_today.empty: 
+        print("⚠️ Sem jogos na grade hoje.")
+        return
     
     step1_candidates = []
     step2_candidates = []
@@ -214,7 +221,6 @@ def job():
         s1 = step1_candidates[0]
         s2 = step2_candidates[0]
         
-        # Tenta não repetir o jogo
         if s1['Jogo'] == s2['Jogo'] and len(step2_candidates) > 1:
             s2 = step2_candidates[1]
         
@@ -235,7 +241,7 @@ def job():
         
         sucesso = enviar_telegram(msg)
         if sucesso:
-            registrar_envio() # <--- AQUI ELE TRAVA PARA NÃO MANDAR MAIS HOJE
+            registrar_envio()
             print("🚀 Ciclo enviado e registrado!")
     else:
         print("❌ Nenhum ciclo ideal encontrado nesta rodada.")
@@ -246,8 +252,7 @@ def job():
 if __name__ == "__main__":
     print("🤖 Iniciando Verificação Única do Robô...")
     
-    # Executa apenas uma vez e encerra. 
-    # O agendamento quem faz é o GitHub Actions (main.yml)
+    # AGORA A FUNÇÃO ESTÁ DEFINIDA CORRETAMENTE ACIMA
     analisar_e_enviar() 
     
     print("🏁 Verificação concluída. Encerrando.")
