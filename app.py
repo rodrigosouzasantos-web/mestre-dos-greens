@@ -240,18 +240,13 @@ def job():
         print("❌ Nenhum ciclo ideal encontrado nesta rodada.")
 
 # ==============================================================================
-# 🔄 LOOP INFINITO (SENTINELA)
+# 🚀 EXECUÇÃO (MODO GITHUB ACTIONS)
 # ==============================================================================
 if __name__ == "__main__":
-    print("🤖 Robô Mestre dos Greens INICIADO...")
+    print("🤖 Iniciando Verificação Única do Robô...")
     
-    # Loop principal (verifica a cada 30 minutos)
-    while True:
-        try:
-            job()
-        except Exception as e:
-            print(f"⚠️ Erro no loop: {e}")
-        
-        # Aguarda 30 minutos (1800 segundos) para checar novamente
-        print("⏳ Aguardando próxima verificação...")
-        time.sleep(1800)
+    # Executa apenas uma vez e encerra. 
+    # O agendamento quem faz é o GitHub Actions (main.yml)
+    analisar_e_enviar() 
+    
+    print("🏁 Verificação concluída. Encerrando.")
