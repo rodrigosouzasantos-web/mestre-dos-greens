@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V66.9 (Final Dynamic)",
+    page_title="Mestre dos Greens PRO - V66.9 (Final Fixed)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -102,18 +102,19 @@ st.markdown("""
     
     /* Tabela Alavancagem */
     .alavancagem-table {
-        font-size: 14px;
+        font-size: 16px;
         color: #e6edf3;
         border-collapse: collapse;
         width: 100%;
+        margin-top: 10px;
     }
     .alavancagem-table th, .alavancagem-table td {
         border: 1px solid #30363d;
-        padding: 8px;
+        padding: 10px;
         text-align: center;
     }
     .alavancagem-table th {
-        background-color: #161b22;
+        background-color: #1f2937;
         color: #f1c40f;
     }
     .winrate-green { color: #2ea043; font-weight: bold; }
@@ -144,6 +145,7 @@ def get_odd_justa(prob):
 # ==============================================================================
 @st.cache_data(ttl=3600)
 def load_data():
+    # LISTAS DEFINIDAS AQUI PARA SEGURANÇA
     URLS_HISTORICAS = {
         "Argentina Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Argentina_Primera_Divisi%C3%B3n_2016-2024.csv",
         "Belgica Pro League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/past-seasons/leagues/Belgium_Pro_League_2016-2025.csv",
@@ -207,7 +209,7 @@ def load_data():
         "USA_Major_League_Soccer_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
         "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv"
     }
-    
+
     URL_HOJE = "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/main/csv/todays_matches/todays_matches.csv"
 
     all_dfs = []
@@ -281,7 +283,7 @@ def load_data():
     # 3. Dataframe SÓ da Temporada Atual (Para Standings)
     df_current_season = pd.concat(current_season_dfs, ignore_index=True) if current_season_dfs else pd.DataFrame()
     
-    # 4. Jogos de Hoje (COM AJUSTE DE HORA V66.7)
+    # 4. Jogos de Hoje
     try:
         df_today = pd.read_csv(URL_HOJE)
         df_today.columns = [c.strip().lower() for c in df_today.columns]
@@ -308,30 +310,6 @@ def load_data():
     except: df_today = pd.DataFrame()
     
     return df_recent, df_today, full_df, df_current_season
-
-# ==============================================================================
-# MOTOR DE CLASSIFICAÇÃO (CÁLCULO REAL)
-# ==============================================================================
-def calculate_standings(df_league_matches):
-    if df_league_matches.empty: return pd.DataFrame()
-    teams = {}
-    for i, row in df_league_matches.iterrows():
-        h, a = row['HomeTeam'], row['AwayTeam']
-        hg, ag = row['FTHG'], row['FTAG']
-        if h not in teams: teams[h] = {'P':0, 'W':0, 'D':0, 'L':0, 'GF':0, 'GA':0, 'Pts':0}
-        if a not in teams: teams[a] = {'P':0, 'W':0, 'D':0, 'L':0, 'GF':0, 'GA':0, 'Pts':0}
-        teams[h]['P'] += 1; teams[h]['GF'] += hg; teams[h]['GA'] += ag
-        teams[a]['P'] += 1; teams[a]['GF'] += ag; teams[a]['GA'] += hg
-        if hg > ag: teams[h]['W'] += 1; teams[h]['Pts'] += 3; teams[a]['L'] += 1
-        elif ag > hg: teams[a]['W'] += 1; teams[a]['Pts'] += 3; teams[h]['L'] += 1
-        else: teams[h]['D'] += 1; teams[h]['Pts'] += 1; teams[a]['D'] += 1; teams[a]['Pts'] += 1
-    df_rank = pd.DataFrame.from_dict(teams, orient='index').reset_index()
-    df_rank.rename(columns={'index':'Team'}, inplace=True)
-    df_rank['GD'] = df_rank['GF'] - df_rank['GA']
-    df_rank = df_rank.sort_values(by=['Pts', 'GD', 'GF'], ascending=False).reset_index(drop=True)
-    df_rank.index += 1 
-    df_rank['Rank'] = df_rank.index
-    return df_rank
 
 # ==============================================================================
 # CÁLCULOS PONDERADOS
@@ -373,15 +351,33 @@ def calcular_xg_ponderado(df_historico, league, team_home, team_away, col_home_g
     xg_away = strength_att_a * strength_def_h * avg_goals_away
     return xg_home, xg_away, strength_att_h, strength_att_a
 
+def calculate_standings(df_league_matches):
+    if df_league_matches.empty: return pd.DataFrame()
+    teams = {}
+    for i, row in df_league_matches.iterrows():
+        h, a = row['HomeTeam'], row['AwayTeam']
+        hg, ag = row['FTHG'], row['FTAG']
+        if h not in teams: teams[h] = {'P':0, 'W':0, 'D':0, 'L':0, 'GF':0, 'GA':0, 'Pts':0}
+        if a not in teams: teams[a] = {'P':0, 'W':0, 'D':0, 'L':0, 'GF':0, 'GA':0, 'Pts':0}
+        teams[h]['P'] += 1; teams[h]['GF'] += hg; teams[h]['GA'] += ag
+        teams[a]['P'] += 1; teams[a]['GF'] += ag; teams[a]['GA'] += hg
+        if hg > ag: teams[h]['W'] += 1; teams[h]['Pts'] += 3; teams[a]['L'] += 1
+        elif ag > hg: teams[a]['W'] += 1; teams[a]['Pts'] += 3; teams[h]['L'] += 1
+        else: teams[h]['D'] += 1; teams[h]['Pts'] += 1; teams[a]['D'] += 1; teams[a]['Pts'] += 1
+    df_rank = pd.DataFrame.from_dict(teams, orient='index').reset_index()
+    df_rank.rename(columns={'index':'Team'}, inplace=True)
+    df_rank['GD'] = df_rank['GF'] - df_rank['GA']
+    df_rank = df_rank.sort_values(by=['Pts', 'GD', 'GF'], ascending=False).reset_index(drop=True)
+    df_rank.index += 1; df_rank['Rank'] = df_rank.index
+    return df_rank
+
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
     df_a = df_historico[df_historico['AwayTeam'] == team_away]
     if df_h.empty or df_a.empty: return 0.0, {}
-    media_pro_a = df_h['HC'].mean()
-    media_contra_b = df_a['HC'].mean() 
+    media_pro_a = df_h['HC'].mean(); media_contra_b = df_a['HC'].mean() 
     exp_cantos_a = (media_pro_a + media_contra_b) / 2
-    media_pro_b = df_a['AC'].mean()
-    media_contra_a = df_h['AC'].mean() 
+    media_pro_b = df_a['AC'].mean(); media_contra_a = df_h['AC'].mean() 
     exp_cantos_b = (media_pro_b + media_contra_a) / 2
     total_exp = exp_cantos_a + exp_cantos_b
     probs = { "Over 8.5": poisson.sf(8, total_exp) * 100, "Over 9.5": poisson.sf(9, total_exp) * 100, "Over 10.5": poisson.sf(10, total_exp) * 100 }
@@ -417,7 +413,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V66.9 (Final Dynamic)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V66.9 (Final Fixed)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -444,7 +440,7 @@ if not df_recent.empty:
             times = clean_selection.split(" x ")
             home_sel, away_sel = times[0], times[1]
             
-            # Lógica de Busca (V66.5.1)
+            # Lógica de Busca Inteligente
             liga_match = None
             try: liga_match = df_recent[df_recent['HomeTeam'] == home_sel]['League_Custom'].mode()[0]
             except: 
@@ -706,58 +702,35 @@ if not df_recent.empty:
                             found_tripla = True; break
                     if not found_tripla: st.warning("Nenhuma Tripla ideal encontrada.")
 
-    # 6. ALAVANCAGEM (DINÂMICA V66.9)
+    # 6. ALAVANCAGEM (NOVA VERSÃO - V66.9 - DINÂMICA)
     elif menu == "🚀 Alavancagem":
         st.header("🚀 Alavancagem Pro (Gestão de Ciclos)")
         
         # --- INPUT DINÂMICO ---
-        stake_inicial = st.sidebar.number_input("💰 Sua Stake Inicial (R$):", min_value=10, value=50, step=10)
+        col_stake, _ = st.columns([1,3])
+        with col_stake:
+            stake_inicial = st.number_input("💰 Digite sua Stake Inicial (R$):", min_value=10.0, value=50.0, step=10.0)
         
-        # Cálculos Dinâmicos da Tabela
-        # Ciclo 1: Início S, Meta 2S, Saque S, Próx S
-        # Ciclo 2: Início S, Meta 2S, Saque 0.5S, Próx 1.5S
-        # Ciclo 3: Início 1.5S, Meta 3S, Saque S, Próx 2S
-        # Ciclo 4: Início 2S, Meta 4S, Saque S, Próx 3S
-        # Ciclo 5: Início 3S, Meta 6S, Saque 6S, Fim
+        # Cálculos Dinâmicos
+        ciclos_data = []
+        bank = stake_inicial
         
-        c1_start = stake_inicial
-        c1_goal = c1_start * 2
-        c1_saque = stake_inicial
-        c1_prox = c1_start # (2S - S) = S
-        
-        c2_start = c1_prox
-        c2_goal = c2_start * 2
-        c2_saque = c2_start * 0.5
-        c2_prox = c2_goal - c2_saque # (2S - 0.5S) = 1.5S
-        
-        c3_start = c2_prox
-        c3_goal = c3_start * 2
-        c3_saque = stake_inicial
-        c3_prox = c3_goal - c3_saque # (3S - S) = 2S
-        
-        c4_start = c3_prox
-        c4_goal = c4_start * 2
-        c4_saque = stake_inicial
-        c4_prox = c4_goal - c4_saque # (4S - S) = 3S
-        
-        c5_start = c4_prox
-        c5_goal = c5_start * 2
-        c5_saque = c5_goal
-        c5_prox = 0
+        for i in range(1, 6):
+            meta = bank * 2
+            saque = 0
+            if i == 1: saque = stake_inicial # Recupera investimento
+            elif i < 5: saque = bank * 0.5 # Saca metade do lucro
+            else: saque = meta # Saca tudo no final
+            
+            prox_ciclo = meta - saque if i < 5 else 0
+            ciclos_data.append({'Ciclo': i, 'Início': bank, 'Meta': meta, 'Saque': saque, 'Próximo': prox_ciclo})
+            bank = prox_ciclo
 
-        ciclos_data = [
-            {'Ciclo': 1, 'Início': c1_start, 'Meta': c1_goal, 'Saque': c1_saque, 'Próximo': c1_prox},
-            {'Ciclo': 2, 'Início': c2_start, 'Meta': c2_goal, 'Saque': c2_saque, 'Próximo': c2_prox},
-            {'Ciclo': 3, 'Início': c3_start, 'Meta': c3_goal, 'Saque': c3_saque, 'Próximo': c3_prox},
-            {'Ciclo': 4, 'Início': c4_start, 'Meta': c4_goal, 'Saque': c4_saque, 'Próximo': c4_prox},
-            {'Ciclo': 5, 'Início': c5_start, 'Meta': c5_goal, 'Saque': c5_saque, 'Próximo': 0},
-        ]
-
-        # --- Tabela Dinâmica ---
+        # Constrói HTML da Tabela
         rows_html = ""
         for c in ciclos_data:
-            next_val = f"{c['Próximo']:.2f}" if c['Próximo'] > 0 else "---"
-            rows_html += f"<tr><td>{c['Ciclo']}</td><td>R$ {c['Início']:.2f}</td><td>R$ {c['Meta']:.2f}</td><td><span class='winrate-green'>R$ {c['Saque']:.2f}</span></td><td>R$ {next_val}</td></tr>"
+            next_val = f"R$ {c['Próximo']:.2f}" if c['Próximo'] > 0 else "---"
+            rows_html += f"<tr><td>{c['Ciclo']}</td><td>R$ {c['Início']:.2f}</td><td>R$ {c['Meta']:.2f}</td><td><span class='winrate-green'>R$ {c['Saque']:.2f}</span></td><td>{next_val}</td></tr>"
 
         st.markdown(f"""
         <div class="metric-card" style="text-align: left;">
@@ -786,7 +759,6 @@ if not df_recent.empty:
                 
                 for i, row in df_today.iterrows():
                     h, a = row['HomeTeam'], row['AwayTeam']
-                    # Busca Liga (mesma lógica da Grade)
                     try: l = df_recent[df_recent['HomeTeam'] == h]['League_Custom'].mode()[0]
                     except: 
                         if h in df_recent['HomeTeam'].unique(): l = df_recent[df_recent['HomeTeam'] == h].iloc[-1]['League_Custom']
@@ -797,7 +769,7 @@ if not df_recent.empty:
                     _, probs, _ = gerar_matriz_poisson(xg_h, xg_a)
                     
                     # --- FILTRO PASSO 1 (ODD ~1.50 -> 1.40 a 1.60) ---
-                    if 0.60 <= probs['Over15'] <= 0.75: # Prob menor gera odd maior
+                    if 0.60 <= probs['Over15'] <= 0.75: 
                         odd = 1/probs['Over15'] if probs['Over15'] > 0 else 0
                         if 1.40 <= odd <= 1.60:
                             step1_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Over 1.5 Gols', 'Odd': odd, 'Prob': probs['Over15']})
@@ -824,7 +796,6 @@ if not df_recent.empty:
                         if 1.20 <= odd <= 1.42:
                              step2_candidates.append({'Jogo': f"{h} x {a}", 'M': 'Casa ou Empate', 'Odd': odd, 'Prob': prob_1x})
 
-                # --- GERAR COMBINAÇÃO ---
                 step1_candidates.sort(key=lambda x: x['Prob'], reverse=True)
                 step2_candidates.sort(key=lambda x: x['Prob'], reverse=True)
                 
