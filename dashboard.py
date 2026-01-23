@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V67.0 (Hybrid Engine)",
+    page_title="Mestre dos Greens PRO - V67.1 (Fixed)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -225,13 +225,23 @@ def load_data():
         try:
             r = requests.get(url); df = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
             df.columns = [c.strip().lower() for c in df.columns]
-            map_cols = {'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 'team_a_corners': 'HC', 'team_b_corners': 'AC'}
+            # Mapeamento Completo com Cartões
+            map_cols = {
+                'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
+                'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
+                'team_a_corners': 'HC', 'team_b_corners': 'AC',
+                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
+            }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
-            for c in ['fthg','ftag','HTHG','HTAG','HC','AC']: 
+            
+            # Garante colunas numéricas (Gols, Cantos, Cartões)
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+            
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
@@ -241,7 +251,9 @@ def load_data():
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
             df['League_Custom'] = name
             df['Season_Type'] = 'Historic'
-            if 'HomeTeam' in df.columns: all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']])
+            
+            if 'HomeTeam' in df.columns: 
+                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']])
         except: pass
         idx+=1; my_bar.progress(idx/total_files)
 
@@ -250,13 +262,21 @@ def load_data():
         try:
             r = requests.get(url); df = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
             df.columns = [c.strip().lower() for c in df.columns]
-            map_cols = {'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 'team_a_corners': 'HC', 'team_b_corners': 'AC'}
+            map_cols = {
+                'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
+                'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
+                'team_a_corners': 'HC', 'team_b_corners': 'AC',
+                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
+            }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
-            for c in ['fthg','ftag','HTHG','HTAG','HC','AC']: 
+            
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
+                
             df.rename(columns={'fthg': 'FTHG', 'ftag': 'FTAG'}, inplace=True)
             df['Over05HT'] = ((df['HTHG'] + df['HTAG']) > 0.5).astype(int)
             df['Over15FT'] = ((df['FTHG'] + df['FTAG']) > 1.5).astype(int)
@@ -266,7 +286,8 @@ def load_data():
             df['AwayWin'] = (df['FTAG'] > df['FTHG']).astype(int)
             df['League_Custom'] = name
             df['Season_Type'] = 'Current' 
-            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']]
+            
+            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']]
             if 'HomeTeam' in df.columns: 
                 all_dfs.append(clean_df)
                 current_season_dfs.append(clean_df)
@@ -439,7 +460,9 @@ def gerar_matriz_poisson(xg_home, xg_away):
 def calcular_probabilidades_hibridas(df_recent, league, home, away):
     # A) Matemática (Poisson)
     xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
-    if xg_h is None: return None, None, None, None
+    # CORREÇÃO: RETORNA TUPLA SEGURA EM CASO DE ERRO
+    if xg_h is None: return None, None, None, (None, None)
+    
     _, math_probs, _ = gerar_matriz_poisson(xg_h, xg_a)
 
     # Matemática para HT (Novo cálculo baseado em xG de HT)
@@ -450,7 +473,8 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
 
     # B) Frequência Real (PDF)
     freq_probs = get_frequencia_real(df_recent, home, away)
-    if freq_probs is None: return None, None, None, None
+    # CORREÇÃO: RETORNA TUPLA SEGURA
+    if freq_probs is None: return None, None, None, (None, None)
 
     # C) Hibridismo (Média Simples: 50% Math / 50% Real)
     final_probs = {
@@ -459,7 +483,7 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
         "Over25": (math_probs['Over25'] + freq_probs['Over25']) / 2,
         "BTTS": (math_probs['BTTS'] + freq_probs['BTTS']) / 2,
         "Under35": (math_probs['Under35'] + freq_probs['Under35']) / 2,
-        "HomeWin": math_probs['HomeWin'], # 1x2 Mantém puramente matemático por enquanto
+        "HomeWin": math_probs['HomeWin'], 
         "Draw": math_probs['Draw'],
         "AwayWin": math_probs['AwayWin']
     }
@@ -493,7 +517,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V67.0 (Hybrid Engine)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V67.1 (Fixed & Full)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -872,7 +896,7 @@ if not df_recent.empty:
                         enviar_telegram(msg)
                 else: st.warning("Não foram encontrados jogos com as probabilidades exatas para formar o ciclo hoje.")
 
-    # 7. ANALISADOR DE TIMES (MANTIDO)
+    # 7. ANALISADOR DE TIMES (MANTIDO E CORRIGIDO)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -921,6 +945,25 @@ if not df_recent.empty:
                 g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
                 g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
                 
+                # REINSERIDO: CARTÕES
+                st.divider()
+                st.subheader("🟨🟥 Disciplina (Médias)")
+                # Home Cards: HY (Home Yellow) + HR (Home Red)
+                # Away Cards: AY (Away Yellow) + AR (Away Red)
+                avg_y_home = df_home['HY'].mean() if not df_home.empty else 0
+                avg_y_away = df_away['AY'].mean() if not df_away.empty else 0
+                avg_r_home = df_home['HR'].mean() if not df_home.empty else 0
+                avg_r_away = df_away['AR'].mean() if not df_away.empty else 0
+                
+                # Média Geral do Time
+                avg_y = (avg_y_home + avg_y_away) / 2
+                avg_r = (avg_r_home + avg_r_away) / 2
+                
+                k1, k2 = st.columns(2)
+                k1.metric("Cartões Amarelos/Jogo", f"{avg_y:.2f}")
+                k2.metric("Cartões Vermelhos/Jogo", f"{avg_r:.2f}")
+                
+                st.divider()
                 st.subheader("📈 Tendências de Over (Gols do Time)")
                 team_score_ht = (df_all['TeamGoals_HT'] > 0).mean()
                 team_score_15 = (df_all['TeamGoals_FT'] > 1.5).mean()
@@ -930,6 +973,19 @@ if not df_recent.empty:
                 st.write(f"Time Marcou 1.5 FT ({team_score_15*100:.0f}%)"); st.progress(float(team_score_15))
                 st.write(f"Time Marcou 2.5 FT ({team_score_25*100:.0f}%)"); st.progress(float(team_score_25))
                 st.write(f"Ambas Marcam (BTTS) ({team_btts*100:.0f}%)"); st.progress(float(team_btts))
+                
+                # REINSERIDO: ÚLTIMOS 10 JOGOS
+                st.divider()
+                st.subheader("🗓️ Últimos 10 Jogos")
+                last_10 = df_all.head(10)[['Date', 'HomeTeam', 'FTHG', 'FTAG', 'AwayTeam', 'HomeWin', 'AwayWin']].copy()
+                def color_results(row):
+                    color = ''
+                    if row['HomeTeam'] == sel_time and row['HomeWin'] == 1: color = 'background-color: #2ea043; color: white'
+                    elif row['AwayTeam'] == sel_time and row['AwayWin'] == 1: color = 'background-color: #2ea043; color: white'
+                    elif row['FTHG'] == row['FTAG']: color = 'background-color: #6e7681; color: white'
+                    else: color = 'background-color: #da3633; color: white'
+                    return [color] * len(row)
+                st.dataframe(last_10.style.apply(color_results, axis=1), use_container_width=True)
 
     # 8. RAIO-X LIGAS
     elif menu == "🌍 Raio-X Ligas":
