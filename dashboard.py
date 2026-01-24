@@ -19,105 +19,60 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V67.2 (Final)",
+    page_title="Mestre dos Greens PRO - V68.0 (Favorites Edition)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# --- INICIALIZAÇÃO DE ESTADO (MEMÓRIA DOS FAVORITOS) ---
+if 'favoritos' not in st.session_state:
+    st.session_state['favoritos'] = []
+
 # --- CSS VISUAL (ESTILO PREMIUM DARK/GOLD) ---
 st.markdown("""
     <style>
-    /* Fundo Geral */
     .stApp { background-color: #0e1117; }
-    
-    /* Cards de Métricas */
     .metric-card {background-color: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 10px; text-align: center;}
-    
-    /* Textos de Métricas */
     div[data-testid="stMetricValue"] { font-size: 20px; color: #f1c40f; font-weight: 700; }
     div[data-testid="stMetricLabel"] { font-size: 14px; color: #8b949e; }
-    
-    /* Sidebar */
     [data-testid="stSidebar"] { background-color: #010409; }
-    
-    /* Botões */
     div.stButton > button { 
         width: 100%; border-radius: 6px; font-weight: bold; 
         background-color: #f1c40f; color: #0d1117; border: none;
         transition: 0.3s;
     }
     div.stButton > button:hover { background-color: #d4ac0d; color: #fff; }
-
-    /* Lista de Placares */
     .placar-row {
-        background-color: #1f2937;
-        padding: 8px;
-        border-radius: 5px;
-        margin-bottom: 4px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-left: 3px solid #f1c40f;
+        background-color: #1f2937; padding: 8px; border-radius: 5px; margin-bottom: 4px;
+        display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #f1c40f;
     }
     .placar-score { font-size: 16px; font-weight: bold; color: #fff; }
     .placar-prob { font-size: 14px; color: #f1c40f; font-weight: bold; }
     .placar-odd { font-size: 12px; color: #cfcfcf; }
-    
-    /* Estilo do Bilhete */
     .ticket-card {
-        background-color: #1c232b;
-        border: 2px solid #f1c40f;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 10px;
+        background-color: #1c232b; border: 2px solid #f1c40f; border-radius: 10px; padding: 20px; margin-bottom: 10px;
     }
     .ticket-header { color: #f1c40f; font-size: 22px; font-weight: bold; margin-bottom: 15px; border-bottom: 1px solid #30363d; padding-bottom: 10px;}
     .ticket-item { font-size: 16px; color: #e6edf3; margin-bottom: 8px; border-left: 3px solid #2ea043; padding-left: 10px; }
     .ticket-total { font-size: 20px; color: #2ea043; font-weight: bold; margin-top: 15px; text-align: right; }
-    
-    /* Cards Analisador (Força) */
     .strength-card {
-        background-color: #161b22;
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid #30363d;
-        text-align: center;
-        margin-bottom: 10px;
+        background-color: #161b22; padding: 15px; border-radius: 8px; border: 1px solid #30363d; text-align: center; margin-bottom: 10px;
     }
     .strength-title { color: #8b949e; font-size: 14px; margin-bottom: 5px; }
     .strength-value { font-size: 24px; font-weight: bold; margin-bottom: 5px; }
     .strength-context { font-size: 12px; color: #cfcfcf; }
-    
-    /* Badge Must Win */
-    .badge-must-win-title {
-        background-color: #2ea043; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px;
-    }
-    .badge-must-win-relegation {
-        background-color: #da3633; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-left: 10px;
-    }
-    .rank-badge {
-        font-weight: bold; color: #f1c40f;
-    }
-    
-    /* Tabela Alavancagem */
     .alavancagem-table {
-        font-size: 14px;
-        color: #e6edf3;
-        border-collapse: collapse;
-        width: 100%;
-        margin-top: 10px;
+        font-size: 14px; color: #e6edf3; border-collapse: collapse; width: 100%; margin-top: 10px;
     }
-    .alavancagem-table th, .alavancagem-table td {
-        border: 1px solid #30363d;
-        padding: 10px;
-        text-align: center;
-    }
-    .alavancagem-table th {
-        background-color: #1f2937;
-        color: #f1c40f;
-    }
+    .alavancagem-table th, .alavancagem-table td { border: 1px solid #30363d; padding: 10px; text-align: center; }
+    .alavancagem-table th { background-color: #1f2937; color: #f1c40f; }
     .winrate-green { color: #2ea043; font-weight: bold; }
+    
+    /* Favoritos Card */
+    .fav-card {
+        background-color: #1c232b; border: 1px solid #2ea043; padding: 15px; border-radius: 8px; margin-bottom: 15px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -225,18 +180,17 @@ def load_data():
         try:
             r = requests.get(url); df = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
             df.columns = [c.strip().lower() for c in df.columns]
-            # Mapeamento Completo com Cantos e Gols
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
-                'team_a_corners': 'HC', 'team_b_corners': 'AC'
+                'team_a_corners': 'HC', 'team_b_corners': 'AC',
+                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
             }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
-            # Garante colunas numéricas
-            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC']
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -252,7 +206,7 @@ def load_data():
             df['Season_Type'] = 'Historic'
             
             if 'HomeTeam' in df.columns: 
-                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']])
+                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']])
         except: pass
         idx+=1; my_bar.progress(idx/total_files)
 
@@ -264,13 +218,14 @@ def load_data():
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
-                'team_a_corners': 'HC', 'team_b_corners': 'AC'
+                'team_a_corners': 'HC', 'team_b_corners': 'AC',
+                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
             }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
-            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC']
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -285,7 +240,7 @@ def load_data():
             df['League_Custom'] = name
             df['Season_Type'] = 'Current' 
             
-            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']]
+            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']]
             if 'HomeTeam' in df.columns: 
                 all_dfs.append(clean_df)
                 current_season_dfs.append(clean_df)
@@ -515,7 +470,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V67.2 (Final & Refined)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V68.0 (Favorites Edition)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -529,9 +484,9 @@ if not df_recent.empty:
         st.rerun()
     st.sidebar.markdown("---")
         
-    menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia", "📊 Winrate & Assertividade", "🏆 Classificação", "⚔️ Simulador Manual", "🎫 Bilhetes Prontos", "🚀 Alavancagem", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
+    menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia", "⭐ Meus Favoritos", "📊 Winrate & Assertividade", "🏆 Classificação", "⚔️ Simulador Manual", "🎫 Bilhetes Prontos", "🚀 Alavancagem", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
-    # 1. GRADE DO DIA
+    # 1. GRADE DO DIA (COM BOTÃO FAVORITAR)
     if menu == "🎯 Grade do Dia":
         st.header("🎯 Grade do Dia")
         if not df_today.empty:
@@ -541,6 +496,22 @@ if not df_recent.empty:
             clean_selection = jogo_selecionado.split(" ⏰ ")[1]
             times = clean_selection.split(" x ")
             home_sel, away_sel = times[0], times[1]
+            
+            # --- LÓGICA DE FAVORITOS ---
+            fav_id = f"{home_sel} vs {away_sel}"
+            is_fav = fav_id in [f['ID'] for f in st.session_state['favoritos']]
+            
+            col_fav, _ = st.columns([1,4])
+            with col_fav:
+                if is_fav:
+                    if st.button("❌ Remover dos Favoritos"):
+                        st.session_state['favoritos'] = [f for f in st.session_state['favoritos'] if f['ID'] != fav_id]
+                        st.rerun()
+                else:
+                    if st.button("⭐ Adicionar aos Favoritos"):
+                        st.session_state['favoritos'].append({'ID': fav_id, 'Home': home_sel, 'Away': away_sel})
+                        st.rerun()
+            # ---------------------------
             
             liga_match = None
             try: liga_match = df_recent[df_recent['HomeTeam'] == home_sel]['League_Custom'].mode()[0]
@@ -593,7 +564,7 @@ if not df_recent.empty:
                             odd_j = get_odd_justa(score['Prob'])
                             st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
                 with col_probs:
-                    st.subheader("📈 Probabilidades Híbridas (Math + Real)")
+                    st.subheader("📈 Probabilidades Híbridas")
                     def visual_metric(label, value, target):
                         yellow_threshold = target - 10
                         if value >= target: st.success(f"🟢 {label}: {value:.1f}%") 
@@ -608,10 +579,44 @@ if not df_recent.empty:
                     st.markdown("---")
                     st.write(f"🏠 **{home_sel}**: {hybrid_probs['HomeWin']*100:.1f}%")
                     st.write(f"✈️ **{away_sel}**: {hybrid_probs['AwayWin']*100:.1f}%")
-            else: st.warning("Dados insuficientes para análise estatística deste confronto (Times novos ou sem histórico recente).")
+            else: st.warning("Dados insuficientes para análise estatística deste confronto.")
         else: st.info("Aguardando jogos...")
 
-    # 2. WINRATE
+    # 2. MEUS FAVORITOS (NOVA PÁGINA)
+    elif menu == "⭐ Meus Favoritos":
+        st.header("⭐ Meus Jogos Favoritos (Monitoramento)")
+        
+        if not st.session_state['favoritos']:
+            st.info("Você ainda não adicionou nenhum jogo aos favoritos. Vá na 'Grade do Dia' e clique na estrela! ⭐")
+        else:
+            if st.button("🗑️ Limpar Todos os Favoritos"):
+                st.session_state['favoritos'] = []
+                st.rerun()
+            
+            for fav in st.session_state['favoritos']:
+                h, a = fav['Home'], fav['Away']
+                try: 
+                    l = df_recent[df_recent['HomeTeam'] == h]['League_Custom'].mode()[0]
+                except: 
+                    if h in df_recent['HomeTeam'].unique(): l = df_recent[df_recent['HomeTeam'] == h].iloc[-1]['League_Custom']
+                    else: l = "Desconhecida"
+                
+                probs, xg_h, xg_a, _ = calcular_probabilidades_hibridas(df_recent, l, h, a)
+                
+                if probs:
+                    with st.expander(f"⚽ {h} x {a} ({l})", expanded=True):
+                        c1, c2, c3, c4, c5 = st.columns(5)
+                        c1.metric("Over 1.5", f"{probs['Over15']*100:.0f}%")
+                        c2.metric("Over 2.5", f"{probs['Over25']*100:.0f}%")
+                        c3.metric("BTTS", f"{probs['BTTS']*100:.0f}%")
+                        c4.metric("0.5 HT", f"{probs['Over05HT']*100:.0f}%")
+                        c5.metric("Casa Vence", f"{probs['HomeWin']*100:.0f}%")
+                        
+                        if st.button(f"❌ Remover {h}x{a}", key=f"del_{h}_{a}"):
+                            st.session_state['favoritos'] = [f for f in st.session_state['favoritos'] if f['ID'] != fav['ID']]
+                            st.rerun()
+
+    # 3. WINRATE
     elif menu == "📊 Winrate & Assertividade":
         st.header("📊 Assertividade do Robô (Backtest Híbrido)")
         last_db_date = df_recent['Date'].max()
@@ -688,7 +693,7 @@ if not df_recent.empty:
         with tab_dia: calculate_winrate(selected_date, selected_date)
         with tab_mes: first_day = selected_date.replace(day=1); calculate_winrate(first_day, selected_date)
 
-    # 3. CLASSIFICAÇÃO
+    # 4. CLASSIFICAÇÃO
     elif menu == "🏆 Classificação":
         st.header("🏆 Classificação (Standings 2025/26)")
         if not df_current_season.empty:
@@ -708,7 +713,7 @@ if not df_recent.empty:
             else: st.warning("Nenhum jogo encontrado para esta liga nesta temporada.")
         else: st.warning("Base de dados da temporada atual vazia.")
 
-    # 4. SIMULADOR
+    # 5. SIMULADOR
     elif menu == "⚔️ Simulador Manual":
         st.header("⚔️ Simulador Manual (Híbrido)")
         all_teams = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -754,7 +759,7 @@ if not df_recent.empty:
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
                     c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
 
-    # 5. BILHETES
+    # 6. BILHETES
     elif menu == "🎫 Bilhetes Prontos":
         st.header("🎫 Bilhetes Prontos (Segurança Híbrida)")
         if df_today.empty: st.info("Nenhum jogo disponível hoje para gerar bilhetes.")
@@ -796,7 +801,7 @@ if not df_recent.empty:
                             found_tripla = True; break
                     if not found_tripla: st.warning("Nenhuma Tripla ideal encontrada.")
 
-    # 6. ALAVANCAGEM
+    # 7. ALAVANCAGEM
     elif menu == "🚀 Alavancagem":
         st.header("🚀 Alavancagem Pro (Motor Híbrido)")
         col_stake, _ = st.columns([1,3])
@@ -894,7 +899,7 @@ if not df_recent.empty:
                         enviar_telegram(msg)
                 else: st.warning("Não foram encontrados jogos com as probabilidades exatas para formar o ciclo hoje.")
 
-    # 7. ANALISADOR DE TIMES (MANTIDO E CORRIGIDO)
+    # 8. ANALISADOR DE TIMES (MANTIDO E CORRIGIDO)
     elif menu == "🔎 Analisador de Times":
         st.header("🔎 Scout Profundo (Visual)")
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
@@ -985,7 +990,7 @@ if not df_recent.empty:
                     return [color] * len(row)
                 st.dataframe(last_10.style.apply(color_results, axis=1), use_container_width=True)
 
-    # 8. RAIO-X LIGAS
+    # 9. RAIO-X LIGAS
     elif menu == "🌍 Raio-X Ligas":
         st.header("🌎 Inteligência Temporal de Ligas (Ano a Ano)")
         all_leagues = sorted(df_recent['League_Custom'].unique())
