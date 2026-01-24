@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V67.1 (Fixed)",
+    page_title="Mestre dos Greens PRO - V67.2 (Final)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -225,19 +225,18 @@ def load_data():
         try:
             r = requests.get(url); df = pd.read_csv(io.StringIO(r.content.decode('utf-8')))
             df.columns = [c.strip().lower() for c in df.columns]
-            # Mapeamento Completo com Cartões
+            # Mapeamento Completo com Cantos e Gols
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
-                'team_a_corners': 'HC', 'team_b_corners': 'AC',
-                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
+                'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
-            # Garante colunas numéricas (Gols, Cantos, Cartões)
-            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            # Garante colunas numéricas
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -253,7 +252,7 @@ def load_data():
             df['Season_Type'] = 'Historic'
             
             if 'HomeTeam' in df.columns: 
-                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']])
+                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']])
         except: pass
         idx+=1; my_bar.progress(idx/total_files)
 
@@ -265,14 +264,13 @@ def load_data():
             map_cols = {
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
-                'team_a_corners': 'HC', 'team_b_corners': 'AC',
-                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
+                'team_a_corners': 'HC', 'team_b_corners': 'AC'
             }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
-            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -287,7 +285,7 @@ def load_data():
             df['League_Custom'] = name
             df['Season_Type'] = 'Current' 
             
-            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']]
+            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','Season_Type']]
             if 'HomeTeam' in df.columns: 
                 all_dfs.append(clean_df)
                 current_season_dfs.append(clean_df)
@@ -517,7 +515,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V67.1 (Fixed & Full)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V67.2 (Final & Refined)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -945,23 +943,23 @@ if not df_recent.empty:
                 g3.metric("Sofridos (Casa)", f"{df_home['FTAG'].mean():.2f}")
                 g4.metric("Sofridos (Fora)", f"{df_away['FTHG'].mean():.2f}")
                 
-                # REINSERIDO: CARTÕES
+                # --- NOVA SEÇÃO: ESCANTEIOS (CASA/FORA) ---
                 st.divider()
-                st.subheader("🟨🟥 Disciplina (Médias)")
-                # Home Cards: HY (Home Yellow) + HR (Home Red)
-                # Away Cards: AY (Away Yellow) + AR (Away Red)
-                avg_y_home = df_home['HY'].mean() if not df_home.empty else 0
-                avg_y_away = df_away['AY'].mean() if not df_away.empty else 0
-                avg_r_home = df_home['HR'].mean() if not df_home.empty else 0
-                avg_r_away = df_away['AR'].mean() if not df_away.empty else 0
+                st.subheader("🚩 Escanteios (Detalhados)")
                 
-                # Média Geral do Time
-                avg_y = (avg_y_home + avg_y_away) / 2
-                avg_r = (avg_r_home + avg_r_away) / 2
+                # Casa
+                home_pro = df_home['HC'].mean() if not df_home.empty else 0
+                home_con = df_home['AC'].mean() if not df_home.empty else 0
+                # Fora
+                away_pro = df_away['AC'].mean() if not df_away.empty else 0
+                away_con = df_away['HC'].mean() if not df_away.empty else 0
                 
-                k1, k2 = st.columns(2)
-                k1.metric("Cartões Amarelos/Jogo", f"{avg_y:.2f}")
-                k2.metric("Cartões Vermelhos/Jogo", f"{avg_r:.2f}")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Em Casa (A Favor)", f"{home_pro:.2f}")
+                c2.metric("Em Casa (Sofridos)", f"{home_con:.2f}")
+                c3.metric("Fora (A Favor)", f"{away_pro:.2f}")
+                c4.metric("Fora (Sofridos)", f"{away_con:.2f}")
+                # -------------------------------------------
                 
                 st.divider()
                 st.subheader("📈 Tendências de Over (Gols do Time)")
