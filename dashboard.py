@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V69.0 (Corners Edition)",
+    page_title="Mestre dos Greens PRO - V69.1 (Full Detail)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -188,6 +188,7 @@ def load_data():
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
+            # Garante colunas numéricas
             cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
@@ -468,7 +469,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V69.0 (Corners Edition)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V69.1 (Full Detail)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -610,7 +611,7 @@ if not df_recent.empty:
                             st.session_state['favoritos'] = [f for f in st.session_state['favoritos'] if f['ID'] != fav['ID']]
                             st.rerun()
 
-    # 3. GRADE DE CANTOS (NOVA)
+    # 3. GRADE DE CANTOS
     elif menu == "🚩 Grade de Cantos":
         st.header("🚩 Melhores Jogos para Escanteios (HT/FT)")
         
@@ -656,9 +657,9 @@ if not df_recent.empty:
             else:
                 st.warning("Sem dados suficientes de cantos para os jogos de hoje.")
 
-    # 4. WINRATE CANTOS (NOVA)
+    # 4. WINRATE CANTOS (DETALHADA)
     elif menu == "📊 Winrate Cantos":
-        st.header("📊 Backtest de Escanteios")
+        st.header("📊 Backtest de Escanteios (Detalhado)")
         last_db_date = df_recent['Date'].max()
         yesterday = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
         default_date = yesterday if yesterday <= last_db_date else last_db_date
@@ -676,46 +677,64 @@ if not df_recent.empty:
                 'Over 10.5': {'total': 0, 'green': 0},
                 'Over 11.5': {'total': 0, 'green': 0}
             }
+            results_cantos = []
             
+            prog_bar = st.progress(0); step = 1/len(games) if len(games)>0 else 1
             for i, row in games.iterrows():
+                prog_bar.progress(min((i+1)*step, 1.0))
                 total_corners = row['HC'] + row['AC']
                 h, a = row['HomeTeam'], row['AwayTeam']
                 exp_cantos, _ = calcular_cantos_esperados_e_probs(df_recent, h, a)
                 
-                # Simula entrada se a expectativa for alta
+                # Critério de Entrada e Log
                 if exp_cantos >= 9.0:
                     stats['Over 8.5']['total'] += 1
+                    res = "✅" if total_corners > 8.5 else "🔻"
                     if total_corners > 8.5: stats['Over 8.5']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 8.5', 'Res':res, 'Cantos':total_corners})
                     
                     stats['Over 9.5']['total'] += 1
+                    res = "✅" if total_corners > 9.5 else "🔻"
                     if total_corners > 9.5: stats['Over 9.5']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 9.5', 'Res':res, 'Cantos':total_corners})
                     
                 if exp_cantos >= 10.5:
                     stats['Over 10.5']['total'] += 1
+                    res = "✅" if total_corners > 10.5 else "🔻"
                     if total_corners > 10.5: stats['Over 10.5']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 10.5', 'Res':res, 'Cantos':total_corners})
                     
                     stats['Over 11.5']['total'] += 1
+                    res = "✅" if total_corners > 11.5 else "🔻"
                     if total_corners > 11.5: stats['Over 11.5']['green'] += 1
-
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 11.5', 'Res':res, 'Cantos':total_corners})
+            
+            prog_bar.empty()
+            
+            # Cards de Resumo
             cols = st.columns(4)
             idx = 0
             for k, v in stats.items():
                 wr = (v['green'] / v['total'] * 100) if v['total'] > 0 else 0
+                color = "#2ea043" if wr >= 70 else "#f1c40f" if wr >= 50 else "#da3633"
                 with cols[idx]:
-                    st.metric(label=k, value=f"{wr:.1f}%", delta=f"{v['green']}/{v['total']}")
+                    st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{k}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{v['green']}/{v['total']}</div></div>""", unsafe_allow_html=True)
                 idx += 1
+            
+            # Tabela Detalhada
+            with st.expander("📝 Detalhes dos Jogos (Cantos)"):
+                st.dataframe(pd.DataFrame(results_cantos), use_container_width=True)
 
-    # 5. WINRATE GOLS (ORIGINAL)
+    # 5. WINRATE GOLS (DETALHADA RESTAURADA)
     elif menu == "📊 Winrate Gols":
         st.header("📊 Assertividade do Robô (Backtest Híbrido)")
-        # ... (CÓDIGO ORIGINAL DO WINRATE GOLS MANTIDO AQUI) ...
-        # Copiei a lógica da versão anterior para cá para não perder
         last_db_date = df_recent['Date'].max()
         yesterday = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
         default_date = yesterday if yesterday <= last_db_date else last_db_date
         col_date, _ = st.columns([1, 3])
         with col_date: selected_date = st.date_input("Selecione a Data:", value=default_date)
-        tab_dia, tab_mes = st.tabs([f"📅 Resultados do Dia", "🗓️ Acumulado"])
+        
+        # Função para calcular e mostrar detalhes
         def calculate_winrate(start, end):
             mask = (df_recent['Date'] >= pd.Timestamp(start)) & (df_recent['Date'] <= pd.Timestamp(end) + pd.Timedelta(hours=23, minutes=59))
             games = df_recent.loc[mask]
@@ -723,28 +742,50 @@ if not df_recent.empty:
                 st.warning(f"Sem jogos.")
                 return
             market_stats = {'Over 0.5 HT': {'total':0, 'green':0}, 'Over 1.5 FT': {'total':0, 'green':0}, 'Over 2.5 FT': {'total':0, 'green':0}, 'BTTS': {'total':0, 'green':0}, 'Under 3.5 FT': {'total':0, 'green':0}}
+            results_gols = []
+            
             prog_bar = st.progress(0); step = 1/len(games) if len(games)>0 else 1
             for i, row in games.iterrows():
                 prog_bar.progress(min((i+1)*step, 1.0))
                 h, a, l = row['HomeTeam'], row['AwayTeam'], row['League_Custom']
                 probs, _, _, _ = calcular_probabilidades_hibridas(df_recent, l, h, a)
                 if probs is None: continue
+                
+                placar_final = f"{int(row['FTHG'])}x{int(row['FTAG'])}"
+                
                 if probs['Over05HT'] >= 0.80:
                     market_stats['Over 0.5 HT']['total'] += 1
+                    res = "✅" if (row['HTHG'] + row['HTAG']) > 0 else "🔻"
                     if (row['HTHG'] + row['HTAG']) > 0: market_stats['Over 0.5 HT']['green'] += 1
+                    results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'0.5 HT', 'Res':res, 'Placar':placar_final})
+                    
                 if probs['Over15'] >= 0.80:
                     market_stats['Over 1.5 FT']['total'] += 1
+                    res = "✅" if (row['FTHG'] + row['FTAG']) > 1.5 else "🔻"
                     if (row['FTHG'] + row['FTAG']) > 1.5: market_stats['Over 1.5 FT']['green'] += 1
+                    results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 1.5', 'Res':res, 'Placar':placar_final})
+                    
                 if probs['Over25'] >= 0.60:
                     market_stats['Over 2.5 FT']['total'] += 1
+                    res = "✅" if (row['FTHG'] + row['FTAG']) > 2.5 else "🔻"
                     if (row['FTHG'] + row['FTAG']) > 2.5: market_stats['Over 2.5 FT']['green'] += 1
+                    results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 2.5', 'Res':res, 'Placar':placar_final})
+                    
                 if probs['BTTS'] >= 0.60:
                     market_stats['BTTS']['total'] += 1
+                    res = "✅" if (row['FTHG'] > 0 and row['FTAG'] > 0) else "🔻"
                     if (row['FTHG'] > 0 and row['FTAG'] > 0): market_stats['BTTS']['green'] += 1
+                    results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'BTTS', 'Res':res, 'Placar':placar_final})
+                    
                 if probs['Under35'] >= 0.80:
                     market_stats['Under 3.5 FT']['total'] += 1
+                    res = "✅" if (row['FTHG'] + row['FTAG']) < 3.5 else "🔻"
                     if (row['FTHG'] + row['FTAG']) < 3.5: market_stats['Under 3.5 FT']['green'] += 1
+                    results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'Under 3.5', 'Res':res, 'Placar':placar_final})
+                    
             prog_bar.empty()
+            
+            # Cards
             cols = st.columns(5)
             i=0
             for m, d in market_stats.items():
@@ -754,6 +795,12 @@ if not df_recent.empty:
                     color = "#2ea043" if wr >= 70 else "#f1c40f" if wr >= 50 else "#da3633"
                     st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{m}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{g}/{t}</div></div>""", unsafe_allow_html=True)
                 i+=1
+                
+            # Tabela Detalhada (RESTAURADA)
+            with st.expander("📝 Detalhes dos Jogos (Gols)"):
+                st.dataframe(pd.DataFrame(results_gols), use_container_width=True)
+
+        tab_dia, tab_mes = st.tabs([f"📅 Resultados do Dia", "🗓️ Acumulado"])
         with tab_dia: calculate_winrate(selected_date, selected_date)
         with tab_mes: first_day = selected_date.replace(day=1); calculate_winrate(first_day, selected_date)
 
