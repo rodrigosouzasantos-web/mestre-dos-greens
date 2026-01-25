@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V69.1 (Full Detail)",
+    page_title="Mestre dos Greens PRO - V69.2 (Stats Update)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -469,7 +469,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V69.1 (Full Detail)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V69.2 (Stats Update)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -1041,6 +1041,22 @@ if not df_recent.empty:
                 
                 st.markdown(f"### 📊 Raio-X: {sel_time} ({main_league})")
                 st.markdown(f"#### 🏆 Posição Atual: **{rank_display}**")
+                
+                # --- NOVA SEÇÃO: ESTATÍSTICAS DA TEMPORADA ATUAL ---
+                # Pega stats reais da tabela de classificação (df_rank)
+                season_gf = team_info.iloc[0]['GF'] if not team_info.empty else 0
+                season_ga = team_info.iloc[0]['GA'] if not team_info.empty else 0
+                season_p = team_info.iloc[0]['P'] if not team_info.empty else 0
+                season_gd = season_gf - season_ga
+                
+                st.markdown(f"#### 📊 Estatísticas da Temporada Atual ({liga_match})")
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Jogos Disputados", season_p)
+                m2.metric("⚽ Gols Marcados", season_gf)
+                m3.metric("🥅 Gols Sofridos", season_ga)
+                m4.metric("Saldo de Gols", season_gd, delta_color="normal")
+                st.divider()
+                # ---------------------------------------------------
                 
                 color_att = "#2ea043" if team_scored_avg > avg_goals_league else "#da3633"
                 color_def = "#2ea043" if team_conceded_avg < avg_goals_league else "#da3633"
