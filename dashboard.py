@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V69.2 (Stats Update)",
+    page_title="Mestre dos Greens PRO - V69.3 (Stats Fix)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -469,7 +469,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V69.2 (Stats Update)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V69.3 (Stats Fix)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -1014,14 +1014,27 @@ if not df_recent.empty:
         all_teams_db = sorted(pd.concat([df_recent['HomeTeam'], df_recent['AwayTeam']]).unique())
         sel_time = st.selectbox("Pesquise o time:", all_teams_db, index=None)
         if sel_time:
-            # (Mantido igual, apenas para visualização de estatísticas brutas)
+            # Inicializa variáveis de segurança
+            season_gf, season_ga, season_p, season_gd = 0, 0, 0, 0
+            rank_display = "-"
+            team_info = pd.DataFrame()
+            liga_match = "Desconhecida"
+
             try:
                 liga_match = df_recent[df_recent['HomeTeam'] == sel_time]['League_Custom'].mode()[0]
                 df_league_matches = df_current_season[df_current_season['League_Custom'] == liga_match]
                 df_rank = calculate_standings(df_league_matches)
                 team_info = df_rank[df_rank['Team'] == sel_time]
-                rank_display = f"{team_info.iloc[0]['Rank']}º na Liga" if not team_info.empty else "Sem Rank"
-            except: rank_display = "-"
+                
+                if not team_info.empty:
+                    rank_display = f"{team_info.iloc[0]['Rank']}º na Liga"
+                    season_gf = team_info.iloc[0]['GF']
+                    season_ga = team_info.iloc[0]['GA']
+                    season_p = team_info.iloc[0]['P']
+                    season_gd = season_gf - season_ga
+            except: 
+                rank_display = "-"
+
             
             df_home = df_recent[df_recent['HomeTeam'] == sel_time].copy()
             df_away = df_recent[df_recent['AwayTeam'] == sel_time].copy()
@@ -1043,12 +1056,6 @@ if not df_recent.empty:
                 st.markdown(f"#### 🏆 Posição Atual: **{rank_display}**")
                 
                 # --- NOVA SEÇÃO: ESTATÍSTICAS DA TEMPORADA ATUAL ---
-                # Pega stats reais da tabela de classificação (df_rank)
-                season_gf = team_info.iloc[0]['GF'] if not team_info.empty else 0
-                season_ga = team_info.iloc[0]['GA'] if not team_info.empty else 0
-                season_p = team_info.iloc[0]['P'] if not team_info.empty else 0
-                season_gd = season_gf - season_ga
-                
                 st.markdown(f"#### 📊 Estatísticas da Temporada Atual ({liga_match})")
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Jogos Disputados", season_p)
