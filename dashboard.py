@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.0 (Global Fix)",
+    page_title="Mestre dos Greens PRO - V70.1 (Corners Filter)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -148,9 +148,9 @@ def load_data():
         "Italia Serie A": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_A_2025-2026.csv",
         "Italia Serie B": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_B_2025-2026.csv",
         "Japao J1 League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Japan_J1_League_2025.csv",
-        "LigaPro_Portugal_2a_división_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
-        "Liga_Portugal_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
-        "Mexico_Liga_MX_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
+        "Portugal 2 Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
+        "Portugal Primeira Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
+        "Mexico Liga MX": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
         "Netherlands_Eredivisie_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Netherlands_Eredivisie_2025-2026.csv",
         "Norway_Eliteserien_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Norway_Eliteserien_2025.csv",
         "Russian_Premier_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Russian_Premier_League_2025-2026.csv",
@@ -455,7 +455,16 @@ def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     media_pro_b = df_a['AC'].mean(); media_contra_a = df_h['AC'].mean() 
     exp_cantos_b = (media_pro_b + media_contra_a) / 2
     total_exp = exp_cantos_a + exp_cantos_b
-    probs = { "Over 8.5": poisson.sf(8, total_exp) * 100, "Over 9.5": poisson.sf(9, total_exp) * 100, "Over 10.5": poisson.sf(10, total_exp) * 100 }
+    
+    # ATUALIZADO: Inclui linhas 6.5 e 7.5
+    probs = {
+        "Over 6.5": poisson.sf(6, total_exp) * 100,
+        "Over 7.5": poisson.sf(7, total_exp) * 100,
+        "Over 8.5": poisson.sf(8, total_exp) * 100,
+        "Over 9.5": poisson.sf(9, total_exp) * 100,
+        "Over 10.5": poisson.sf(10, total_exp) * 100,
+        "Over 11.5": poisson.sf(11, total_exp) * 100
+    }
     return total_exp, probs
 
 def exibir_matriz_visual(matriz, home_name, away_name):
@@ -473,7 +482,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.0 (Global Fix)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.1 (Corners Filter)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -622,6 +631,9 @@ if not df_recent.empty:
         if df_today.empty:
             st.info("Sem jogos hoje.")
         else:
+            linha_opcoes = ["Over 6.5", "Over 7.5", "Over 8.5", "Over 9.5", "Over 10.5", "Over 11.5", "Over 12.5"]
+            linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=3) # Default 9.5
+
             lista_cantos = []
             for i, row in df_today.iterrows():
                 h, a = row['HomeTeam'], row['AwayTeam']
@@ -631,29 +643,33 @@ if not df_recent.empty:
                     df_a = df_recent[df_recent['AwayTeam'] == a]
                     h_avg = df_h['HC'].mean() if not df_h.empty else 0
                     a_avg = df_a['AC'].mean() if not df_a.empty else 0
+                    
+                    prob_linha = probs.get(linha_escolhida, 0.0)
+
                     lista_cantos.append({
                         'Jogo': f"{h} x {a}",
                         'Hora': row['Hora'],
                         'Média Casa': h_avg,
                         'Média Fora': a_avg,
                         'Exp FT': exp_cantos,
-                        'Proj HT': exp_cantos * 0.45, # Estimativa HT
-                        'Prob Over 9.5': probs['Over 9.5']
+                        'Proj HT': exp_cantos * 0.45,
+                        'Prob Linha': prob_linha,
+                        'Linha': linha_escolhida
                     })
             
             if lista_cantos:
                 df_cantos = pd.DataFrame(lista_cantos)
-                df_cantos = df_cantos.sort_values('Exp FT', ascending=False)
+                df_cantos = df_cantos.sort_values('Prob Linha', ascending=False)
                 
                 for idx, row in df_cantos.iterrows():
-                    cor = "#2ea043" if row['Exp FT'] >= 10 else "#f1c40f"
+                    cor = "#2ea043" if row['Prob Linha'] >= 60 else "#f1c40f"
                     st.markdown(f"""
                     <div class="ticket-card" style="border-color: {cor};">
                         <div style="font-size: 18px; font-weight: bold; color: {cor};">⚽ {row['Jogo']} <span style="font-size:14px; color:#ccc">({row['Hora']})</span></div>
                         <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                             <div>🚩 <b>Exp. FT:</b> {row['Exp FT']:.2f}</div>
                             <div>⚡ <b>Proj. HT:</b> {row['Proj HT']:.2f}</div>
-                            <div>📈 <b>Over 9.5:</b> {row['Prob Over 9.5']:.1f}%</div>
+                            <div>📈 <b>{row['Linha']}:</b> {row['Prob Linha']:.1f}%</div>
                         </div>
                         <div style="font-size: 12px; color: #888; margin-top: 5px;">Média Casa: {row['Média Casa']:.2f} | Média Fora: {row['Média Fora']:.2f}</div>
                     </div>
