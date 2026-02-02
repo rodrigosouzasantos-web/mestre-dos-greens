@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.1 (Corners Filter)",
+    page_title="Mestre dos Greens PRO - V70.2 (Market Scanner)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -148,9 +148,9 @@ def load_data():
         "Italia Serie A": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_A_2025-2026.csv",
         "Italia Serie B": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Italy_Serie_B_2025-2026.csv",
         "Japao J1 League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Japan_J1_League_2025.csv",
-        "Portugal 2 Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
-        "Portugal Primeira Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
-        "Mexico Liga MX": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
+        "LigaPro_Portugal_2a_división_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/LigaPro_Portugal_2a_divisi%C3%B3n_2025-2026.csv",
+        "Liga_Portugal_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Liga_Portugal_2025-2026.csv",
+        "Mexico_Liga_MX_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Mexico_Liga_MX_2025-2026.csv",
         "Netherlands_Eredivisie_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Netherlands_Eredivisie_2025-2026.csv",
         "Norway_Eliteserien_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Norway_Eliteserien_2025.csv",
         "Russian_Premier_League_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Russian_Premier_League_2025-2026.csv",
@@ -482,7 +482,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.1 (Corners Filter)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.2 (Market Scanner)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -502,6 +502,61 @@ if not df_recent.empty:
     if menu == "🎯 Grade do Dia":
         st.header("🎯 Grade do Dia")
         if not df_today.empty:
+            # --- NOVO: SCANNER DE OPORTUNIDADES ---
+            st.markdown("### 🔎 Rastreador de Oportunidades")
+            market_options = ["Selecionar Mercado...", "Over 1.5 FT", "Over 2.5 FT", "BTTS (Ambas Marcam)", "Over 0.5 HT", "Casa Vence", "Visitante Vence"]
+            market_filter = st.selectbox("Filtrar jogos por alta probabilidade:", market_options)
+            
+            if market_filter != "Selecionar Mercado...":
+                with st.spinner(f"Escaneando grade para {market_filter}..."):
+                    scanner_results = []
+                    for i, row in df_today.iterrows():
+                        h, a = row['HomeTeam'], row['AwayTeam']
+                        try: l = df_recent[df_recent['HomeTeam'] == h]['League_Custom'].mode()[0]
+                        except: 
+                            if h in df_recent['HomeTeam'].unique(): l = df_recent[df_recent['HomeTeam'] == h].iloc[-1]['League_Custom']
+                            else: continue
+                        
+                        probs, xg_h, xg_a, _ = calcular_probabilidades_hibridas(df_recent, l, h, a)
+                        if probs is None: continue
+                        
+                        match_val = 0
+                        threshold = 0
+                        
+                        if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 80
+                        elif market_filter == "Over 2.5 FT": match_val = probs['Over25']*100; threshold = 60
+                        elif market_filter == "BTTS (Ambas Marcam)": match_val = probs['BTTS']*100; threshold = 60
+                        elif market_filter == "Over 0.5 HT": match_val = probs['Over05HT']*100; threshold = 80
+                        elif market_filter == "Casa Vence": match_val = probs['HomeWin']*100; threshold = 50
+                        elif market_filter == "Visitante Vence": match_val = probs['AwayWin']*100; threshold = 50
+                        
+                        if match_val >= threshold:
+                            scanner_results.append({
+                                'Jogo': f"{h} x {a}",
+                                'Liga': l,
+                                'Hora': row['Hora'],
+                                'Prob': match_val
+                            })
+                    
+                    if scanner_results:
+                        df_scanner = pd.DataFrame(scanner_results).sort_values('Prob', ascending=False)
+                        for idx, row in df_scanner.iterrows():
+                            cor = "#2ea043" if row['Prob'] >= (threshold + 10) else "#f1c40f"
+                            st.markdown(f"""
+                            <div class="ticket-card" style="border-color: {cor}; padding: 15px;">
+                                <div style="display:flex; justify-content:space-between;">
+                                    <div style="font-size: 16px; font-weight: bold; color: white;">⚽ {row['Jogo']}</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: {cor};">{row['Prob']:.1f}%</div>
+                                </div>
+                                <div style="font-size: 12px; color: #888;">{row['Liga']} | ⏰ {row['Hora']}</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.info(f"Nenhum jogo encontrado com alta probabilidade para {market_filter} hoje.")
+            st.divider()
+            # --------------------------------------
+
+            st.subheader("🕵️ Analisador Detalhado (Jogo Único)")
             jogos_hoje = [f"{row['Hora']} ⏰ {row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
             jogo_selecionado = st.selectbox("👉 Selecione um jogo:", jogos_hoje, index=0)
             
@@ -553,7 +608,6 @@ if not df_recent.empty:
             exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
             
             if hybrid_probs is not None:
-                st.divider()
                 st.markdown(f"### 📊 Raio-X Híbrido: {home_sel} {home_rank_str} vs {away_sel} {away_rank_str}")
                 if liga_match: st.caption(f"Liga Identificada: {liga_match}")
                 c1, c2, c3, c4 = st.columns(4)
