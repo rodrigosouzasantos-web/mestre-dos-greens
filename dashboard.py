@@ -1247,4 +1247,4 @@ if not df_recent.empty:
         fig_evol.update_layout(xaxis=dict(type='category'))
         st.plotly_chart(fig_evol, use_container_width=True)
 
-else: st.info("Carregando...")"
+else: st.info("Carregando...")
