@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.3 (Under Added & Fixed)",
+    page_title="Mestre dos Greens PRO - V70.4 (Visual Scanner)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -28,6 +28,9 @@ st.set_page_config(
 # --- INICIALIZAÇÃO DE ESTADO ---
 if 'favoritos' not in st.session_state:
     st.session_state['favoritos'] = []
+# Estado para controlar qual botão do scanner foi clicado
+if 'scanner_market' not in st.session_state:
+    st.session_state['scanner_market'] = None
 
 # --- CSS VISUAL ---
 st.markdown("""
@@ -43,6 +46,23 @@ st.markdown("""
         transition: 0.3s;
     }
     div.stButton > button:hover { background-color: #d4ac0d; color: #fff; }
+    
+    /* Estilo Especial para Botões do Scanner */
+    .scanner-btn > button {
+        background-color: #1f2937 !important;
+        color: #e6edf3 !important;
+        border: 1px solid #30363d !important;
+        font-size: 14px !important;
+    }
+    .scanner-btn > button:hover {
+        background-color: #2ea043 !important;
+        color: #fff !important;
+    }
+    .scanner-btn > button:focus {
+        background-color: #2ea043 !important;
+        color: #fff !important;
+    }
+
     .placar-row {
         background-color: #1f2937; padding: 8px; border-radius: 5px; margin-bottom: 4px;
         display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #f1c40f;
@@ -502,13 +522,30 @@ if not df_recent.empty:
     if menu == "🎯 Grade do Dia":
         st.header("🎯 Grade do Dia")
         if not df_today.empty:
-            # --- NOVO: SCANNER DE OPORTUNIDADES ---
-            st.markdown("### 🔎 Rastreador de Oportunidades")
-            market_options = ["Selecionar Mercado...", "Over 1.5 FT", "Over 2.5 FT", "BTTS (Ambas Marcam)", "Under 3.5 FT", "Over 0.5 HT", "Casa Vence", "Visitante Vence"]
-            market_filter = st.selectbox("Filtrar jogos por alta probabilidade:", market_options)
             
-            if market_filter != "Selecionar Mercado...":
-                with st.spinner(f"Escaneando grade para {market_filter}..."):
+            # --- NOVO: BOTÕES VISUAIS DO SCANNER ---
+            st.markdown("### 🔎 Rastreador de Oportunidades")
+            st.markdown("<p style='color: #8b949e; font-size: 14px;'>Selecione um mercado para filtrar os melhores jogos do dia.</p>", unsafe_allow_html=True)
+            
+            c1, c2, c3, c4 = st.columns(4)
+            with c1:
+                if st.button("🔥 Over 2.5 FT", key="scan_o25"): st.session_state['scanner_market'] = "Over 2.5 FT"
+                if st.button("⚡ Over 0.5 HT", key="scan_o05ht"): st.session_state['scanner_market'] = "Over 0.5 HT"
+            with c2:
+                if st.button("🤝 BTTS (Ambas)", key="scan_btts"): st.session_state['scanner_market'] = "BTTS (Ambas Marcam)"
+                if st.button("🛡️ Over 1.5 FT", key="scan_o15"): st.session_state['scanner_market'] = "Over 1.5 FT"
+            with c3:
+                if st.button("🧱 Under 3.5 FT", key="scan_u35"): st.session_state['scanner_market'] = "Under 3.5 FT"
+                if st.button("🏠 Casa Vence", key="scan_home"): st.session_state['scanner_market'] = "Casa Vence"
+            with c4:
+                if st.button("✈️ Visitante Vence", key="scan_away"): st.session_state['scanner_market'] = "Visitante Vence"
+                if st.button("🧹 Limpar Filtro", key="scan_clear"): st.session_state['scanner_market'] = None
+
+            market_filter = st.session_state.get('scanner_market', None)
+            
+            if market_filter:
+                st.markdown(f"#### Resultados para: **{market_filter}**")
+                with st.spinner(f"Escaneando grade..."):
                     scanner_results = []
                     for i, row in df_today.iterrows():
                         h, a = row['HomeTeam'], row['AwayTeam']
@@ -686,6 +723,9 @@ if not df_recent.empty:
         if df_today.empty:
             st.info("Sem jogos hoje.")
         else:
+            linha_opcoes = ["Over 6.5", "Over 7.5", "Over 8.5", "Over 9.5", "Over 10.5", "Over 11.5", "Over 12.5"]
+            linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=3) # Default 9.5
+
             lista_cantos = []
             for i, row in df_today.iterrows():
                 h, a = row['HomeTeam'], row['AwayTeam']
@@ -695,29 +735,33 @@ if not df_recent.empty:
                     df_a = df_recent[df_recent['AwayTeam'] == a]
                     h_avg = df_h['HC'].mean() if not df_h.empty else 0
                     a_avg = df_a['AC'].mean() if not df_a.empty else 0
+                    
+                    prob_linha = probs.get(linha_escolhida, 0.0)
+
                     lista_cantos.append({
                         'Jogo': f"{h} x {a}",
                         'Hora': row['Hora'],
                         'Média Casa': h_avg,
                         'Média Fora': a_avg,
                         'Exp FT': exp_cantos,
-                        'Proj HT': exp_cantos * 0.45, # Estimativa HT
-                        'Prob Over 9.5': probs['Over 9.5']
+                        'Proj HT': exp_cantos * 0.45,
+                        'Prob Linha': prob_linha,
+                        'Linha': linha_escolhida
                     })
             
             if lista_cantos:
                 df_cantos = pd.DataFrame(lista_cantos)
-                df_cantos = df_cantos.sort_values('Exp FT', ascending=False)
+                df_cantos = df_cantos.sort_values('Prob Linha', ascending=False)
                 
                 for idx, row in df_cantos.iterrows():
-                    cor = "#2ea043" if row['Exp FT'] >= 10 else "#f1c40f"
+                    cor = "#2ea043" if row['Prob Linha'] >= 60 else "#f1c40f"
                     st.markdown(f"""
                     <div class="ticket-card" style="border-color: {cor};">
                         <div style="font-size: 18px; font-weight: bold; color: {cor};">⚽ {row['Jogo']} <span style="font-size:14px; color:#ccc">({row['Hora']})</span></div>
                         <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                             <div>🚩 <b>Exp. FT:</b> {row['Exp FT']:.2f}</div>
                             <div>⚡ <b>Proj. HT:</b> {row['Proj HT']:.2f}</div>
-                            <div>📈 <b>Over 9.5:</b> {row['Prob Over 9.5']:.1f}%</div>
+                            <div>📈 <b>{row['Linha']}:</b> {row['Prob Linha']:.1f}%</div>
                         </div>
                         <div style="font-size: 12px; color: #888; margin-top: 5px;">Média Casa: {row['Média Casa']:.2f} | Média Fora: {row['Média Fora']:.2f}</div>
                     </div>
