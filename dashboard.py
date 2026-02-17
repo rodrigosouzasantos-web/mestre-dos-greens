@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.2 (Market Scanner)",
+    page_title="Mestre dos Greens PRO - V70.3 (Under Market Added)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -482,7 +482,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.2 (Market Scanner)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.3 (Under Market Added)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -504,7 +504,7 @@ if not df_recent.empty:
         if not df_today.empty:
             # --- NOVO: SCANNER DE OPORTUNIDADES ---
             st.markdown("### 🔎 Rastreador de Oportunidades")
-            market_options = ["Selecionar Mercado...", "Over 1.5 FT", "Over 2.5 FT", "BTTS (Ambas Marcam)", "Over 0.5 HT", "Casa Vence", "Visitante Vence"]
+            market_options = ["Selecionar Mercado...", "Over 1.5 FT", "Over 2.5 FT", "BTTS (Ambas Marcam)", "Under 3.5 FT", "Over 0.5 HT", "Casa Vence", "Visitante Vence"]
             market_filter = st.selectbox("Filtrar jogos por alta probabilidade:", market_options)
             
             if market_filter != "Selecionar Mercado...":
@@ -526,6 +526,7 @@ if not df_recent.empty:
                         if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 80
                         elif market_filter == "Over 2.5 FT": match_val = probs['Over25']*100; threshold = 60
                         elif market_filter == "BTTS (Ambas Marcam)": match_val = probs['BTTS']*100; threshold = 60
+                        elif market_filter == "Under 3.5 FT": match_val = probs['Under35']*100; threshold = 80
                         elif market_filter == "Over 0.5 HT": match_val = probs['Over05HT']*100; threshold = 80
                         elif market_filter == "Casa Vence": match_val = probs['HomeWin']*100; threshold = 50
                         elif market_filter == "Visitante Vence": match_val = probs['AwayWin']*100; threshold = 50
@@ -1253,4 +1254,4 @@ if not df_recent.empty:
         fig_evol.update_layout(xaxis=dict(type='category'))
         st.plotly_chart(fig_evol, use_container_width=True)
 
-else: st.info("Carregando...")
+else: st.info("Carregando...")"
