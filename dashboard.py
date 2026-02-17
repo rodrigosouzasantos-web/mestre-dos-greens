@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.3 (Under Market Added)",
+    page_title="Mestre dos Greens PRO - V70.3 (Under Added & Fixed)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -159,7 +159,7 @@ def load_data():
         "Espanha La Liga": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_La_Liga_2025-2026.csv",
         "Espanha La Liga 2": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Spain_Segunda_Divisi%C3%B3n_2025-2026.csv",
         "Sweden Allsvenskan": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Sweden_Allsvenskan_2025.csv",
-        "Turquia Super Lig": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
+        "Turkey_Süper_Lig_2025-2026": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Turkey_S%C3%BCper_Lig_2025-2026.csv",
         "USA_Major_League_Soccer_2025": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/USA_Major_League_Soccer_2025.csv",
         "Uruguay Primera": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Uruguay_Primera_Divisi%C3%B3n_2025.csv",
         "Suica Super League": "https://raw.githubusercontent.com/bet2all-scorpion/football-data-bet2all/refs/heads/main/csv/matches/leagues/Switzerland_Super_League_2025-2026.csv",
@@ -686,9 +686,6 @@ if not df_recent.empty:
         if df_today.empty:
             st.info("Sem jogos hoje.")
         else:
-            linha_opcoes = ["Over 6.5", "Over 7.5", "Over 8.5", "Over 9.5", "Over 10.5", "Over 11.5", "Over 12.5"]
-            linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=3) # Default 9.5
-
             lista_cantos = []
             for i, row in df_today.iterrows():
                 h, a = row['HomeTeam'], row['AwayTeam']
@@ -698,33 +695,29 @@ if not df_recent.empty:
                     df_a = df_recent[df_recent['AwayTeam'] == a]
                     h_avg = df_h['HC'].mean() if not df_h.empty else 0
                     a_avg = df_a['AC'].mean() if not df_a.empty else 0
-                    
-                    prob_linha = probs.get(linha_escolhida, 0.0)
-
                     lista_cantos.append({
                         'Jogo': f"{h} x {a}",
                         'Hora': row['Hora'],
                         'Média Casa': h_avg,
                         'Média Fora': a_avg,
                         'Exp FT': exp_cantos,
-                        'Proj HT': exp_cantos * 0.45,
-                        'Prob Linha': prob_linha,
-                        'Linha': linha_escolhida
+                        'Proj HT': exp_cantos * 0.45, # Estimativa HT
+                        'Prob Over 9.5': probs['Over 9.5']
                     })
             
             if lista_cantos:
                 df_cantos = pd.DataFrame(lista_cantos)
-                df_cantos = df_cantos.sort_values('Prob Linha', ascending=False)
+                df_cantos = df_cantos.sort_values('Exp FT', ascending=False)
                 
                 for idx, row in df_cantos.iterrows():
-                    cor = "#2ea043" if row['Prob Linha'] >= 60 else "#f1c40f"
+                    cor = "#2ea043" if row['Exp FT'] >= 10 else "#f1c40f"
                     st.markdown(f"""
                     <div class="ticket-card" style="border-color: {cor};">
                         <div style="font-size: 18px; font-weight: bold; color: {cor};">⚽ {row['Jogo']} <span style="font-size:14px; color:#ccc">({row['Hora']})</span></div>
                         <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                             <div>🚩 <b>Exp. FT:</b> {row['Exp FT']:.2f}</div>
                             <div>⚡ <b>Proj. HT:</b> {row['Proj HT']:.2f}</div>
-                            <div>📈 <b>{row['Linha']}:</b> {row['Prob Linha']:.1f}%</div>
+                            <div>📈 <b>Over 9.5:</b> {row['Prob Over 9.5']:.1f}%</div>
                         </div>
                         <div style="font-size: 12px; color: #888; margin-top: 5px;">Média Casa: {row['Média Casa']:.2f} | Média Fora: {row['Média Fora']:.2f}</div>
                     </div>
