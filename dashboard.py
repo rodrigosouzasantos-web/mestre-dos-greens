@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.4 (Visual Scanner)",
+    page_title="Mestre dos Greens PRO - V70.5 (Final Clean)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -898,8 +898,8 @@ if not df_recent.empty:
                     
                 if probs['BTTS'] >= 0.60:
                     market_stats['BTTS']['total'] += 1
-                    res = "✅" if (row['FTHG'] > 0 and row['FTAG'] > 0) else "🔻"
-                    if (row['FTHG'] > 0 and row['FTAG'] > 0): market_stats['BTTS']['green'] += 1
+                    res = "✅" if (row['FTHG'] > 0 and row['FTAG']) > 0 else "🔻"
+                    if (row['FTHG'] > 0 and row['FTAG']) > 0): market_stats['BTTS']['green'] += 1
                     results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'BTTS', 'Res':res, 'Placar':placar_final})
                     
                 if probs['Under35'] >= 0.80:
