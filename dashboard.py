@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.5 (Final Clean)",
+    page_title="Mestre dos Greens PRO - V70.6 (Fixed)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -206,14 +206,16 @@ def load_data():
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
                 'team_a_corners': 'HC', 'team_b_corners': 'AC',
-                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
+                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR',
+                'team_a_possession': 'HPoss', 'team_b_possession': 'APoss',
+                'team_a_shotsontarget': 'HST', 'team_b_shotsontarget': 'AST'
             }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
             # Garante colunas numéricas
-            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR', 'HPoss', 'APoss', 'HST', 'AST']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -229,7 +231,7 @@ def load_data():
             df['Season_Type'] = 'Historic'
             
             if 'HomeTeam' in df.columns: 
-                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']])
+                all_dfs.append(df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','HPoss','APoss','HST','AST','Season_Type']])
         except: pass
         idx+=1; my_bar.progress(idx/total_files)
 
@@ -242,13 +244,15 @@ def load_data():
                 'homegoalcount': 'fthg', 'awaygoalcount': 'ftag', 'home_score': 'fthg', 'away_score': 'ftag', 
                 'ht_goals_team_a': 'HTHG', 'ht_goals_team_b': 'HTAG', 
                 'team_a_corners': 'HC', 'team_b_corners': 'AC',
-                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR'
+                'home_yellow': 'HY', 'away_yellow': 'AY', 'home_red': 'HR', 'away_red': 'AR',
+                'team_a_possession': 'HPoss', 'team_b_possession': 'APoss',
+                'team_a_shotsontarget': 'HST', 'team_b_shotsontarget': 'AST'
             }
             df.rename(columns=map_cols, inplace=True)
             if 'date' not in df.columns and 'date_unix' in df.columns: df['date'] = pd.to_datetime(df['date_unix'], unit='s')
             df.rename(columns={'date':'Date','home_name':'HomeTeam','away_name':'AwayTeam'}, inplace=True)
             
-            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR']
+            cols_numeric = ['fthg','ftag','HTHG','HTAG','HC','AC','HY','AY','HR','AR', 'HPoss', 'APoss', 'HST', 'AST']
             for c in cols_numeric: 
                 if c not in df.columns: df[c] = 0
                 df[c] = pd.to_numeric(df[c], errors='coerce').fillna(0)
@@ -263,7 +267,7 @@ def load_data():
             df['League_Custom'] = name
             df['Season_Type'] = 'Current' 
             
-            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','Season_Type']]
+            clean_df = df[['Date','League_Custom','HomeTeam','AwayTeam','FTHG','FTAG','HTHG','HTAG','Over05HT','Over15FT','Over25FT','BTTS','HomeWin','AwayWin','HC','AC','HY','AY','HR','AR','HPoss','APoss','HST','AST','Season_Type']]
             if 'HomeTeam' in df.columns: 
                 all_dfs.append(clean_df)
                 current_season_dfs.append(clean_df)
@@ -502,7 +506,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.3 (Under Market Added)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.6 (Fixed)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -898,8 +902,8 @@ if not df_recent.empty:
                     
                 if probs['BTTS'] >= 0.60:
                     market_stats['BTTS']['total'] += 1
-                    res = "✅" if (row['FTHG'] > 0 and row['FTAG']) > 0 else "🔻"
-                    if (row['FTHG'] > 0 and row['FTAG']) > 0): market_stats['BTTS']['green'] += 1
+                    res = "✅" if (row['FTHG'] > 0 and row['FTAG'] > 0) else "🔻"
+                    if (row['FTHG'] > 0 and row['FTAG'] > 0): market_stats['BTTS']['green'] += 1
                     results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'BTTS', 'Res':res, 'Placar':placar_final})
                     
                 if probs['Under35'] >= 0.80:
@@ -982,7 +986,7 @@ if not df_recent.empty:
                     c_btn1, c_btn2 = st.columns(2)
                     with c_btn1:
                         if st.button("📤 Enviar para Telegram", key="btn_send_sim"):
-                            msg = f"🔥 *SIMULAÇÃO HÍBRIDA* {team_a} x {team_b}\n📊 Over 2.5: {hybrid_probs['Over25']*100:.1f}%"
+                            msg = f"🔥 *SIMULAÇÃO HÍBRIDA* {team_a} x {team_b}\n📊 Over 2.5: {hybrid_probs['Over25']*100:.1f}%\n"
                             if enviar_telegram(msg): st.success("Enviado!")
                     with c_btn2:
                         if st.button("📋 Ver Top Placares", key="btn_sim"):
@@ -1202,6 +1206,21 @@ if not df_recent.empty:
                 m4.metric("Saldo de Gols", season_gd, delta_color="normal")
                 st.divider()
                 # ---------------------------------------------------
+                
+                # --- NOVA SEÇÃO: ESTATÍSTICAS AVANÇADAS (POSSE E CHUTES) ---
+                st.subheader("🎯 Estatísticas Avançadas (Média por Jogo)")
+                home_poss = df_home['HPoss'].mean() if not df_home.empty else 0
+                home_st = df_home['HST'].mean() if not df_home.empty else 0
+                away_poss = df_away['APoss'].mean() if not df_away.empty else 0
+                away_st = df_away['AST'].mean() if not df_away.empty else 0
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Posse de Bola (Casa)", f"{home_poss:.1f}%")
+                c2.metric("Posse de Bola (Fora)", f"{away_poss:.1f}%")
+                c3.metric("Chutes no Alvo (Casa)", f"{home_st:.1f}")
+                c4.metric("Chutes no Alvo (Fora)", f"{away_st:.1f}")
+                st.divider()
+                # -----------------------------------------------------------
                 
                 color_att = "#2ea043" if team_scored_avg > avg_goals_league else "#da3633"
                 color_def = "#2ea043" if team_conceded_avg < avg_goals_league else "#da3633"
