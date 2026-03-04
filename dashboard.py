@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.6 (Fixed)",
+    page_title="Mestre dos Greens PRO - V70.7 (Safe Corners)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -440,7 +440,6 @@ def gerar_matriz_poisson(xg_home, xg_away):
 def calcular_probabilidades_hibridas(df_recent, league, home, away):
     # A) Matemática (Poisson)
     xg_h, xg_a, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'FTHG', 'FTAG')
-    # CORREÇÃO: RETORNA TUPLA SEGURA EM CASO DE ERRO
     if xg_h is None: return None, None, None, (None, None)
     
     _, math_probs, _ = gerar_matriz_poisson(xg_h, xg_a)
@@ -453,7 +452,6 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
 
     # B) Frequência Real (PDF)
     freq_probs = get_frequencia_real(df_recent, home, away)
-    # CORREÇÃO: RETORNA TUPLA SEGURA
     if freq_probs is None: return None, None, None, (None, None)
 
     # C) Hibridismo (Média Simples: 50% Math / 50% Real)
@@ -468,26 +466,52 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
         "AwayWin": math_probs['AwayWin']
     }
     
+    # --- NOVO: TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
+    # Se a expectativa matemática total for alta (tendência de quase 3 gols), penaliza o Under 3.5
+    total_xg = xg_h + xg_a
+    if total_xg > 2.65:
+        final_probs["Under35"] = final_probs["Under35"] * 0.75 # Reduz a chance em 25%
+    
     return final_probs, xg_h, xg_a, (xg_h_ht, xg_a_ht)
 
+# 5. NOVO CÁLCULO DE CANTOS (PONDERADO)
 def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
+    df_h_all = df_historico[(df_historico['HomeTeam'] == team_home) | (df_historico['AwayTeam'] == team_home)].sort_values('Date')
+    df_a_all = df_historico[(df_historico['HomeTeam'] == team_away) | (df_historico['AwayTeam'] == team_away)].sort_values('Date')
     df_h = df_historico[df_historico['HomeTeam'] == team_home]
     df_a = df_historico[df_historico['AwayTeam'] == team_away]
-    if df_h.empty or df_a.empty: return 0.0, {}
-    media_pro_a = df_h['HC'].mean(); media_contra_b = df_a['HC'].mean() 
-    exp_cantos_a = (media_pro_a + media_contra_b) / 2
-    media_pro_b = df_a['AC'].mean(); media_contra_a = df_h['AC'].mean() 
-    exp_cantos_b = (media_pro_b + media_contra_a) / 2
-    total_exp = exp_cantos_a + exp_cantos_b
     
-    # ATUALIZADO: Inclui linhas 6.5 e 7.5
+    if df_h.empty or df_a.empty or df_h_all.empty or df_a_all.empty: return 0.0, {}
+    
+    # Função auxiliar para capturar todos os cantos a favor e contra de um time, independente de ser casa ou fora
+    def get_corners_stats(df_full, team):
+        pro = df_full.apply(lambda x: x['HC'] if x['HomeTeam'] == team else x['AC'], axis=1)
+        con = df_full.apply(lambda x: x['AC'] if x['HomeTeam'] == team else x['HC'], axis=1)
+        return pro, con
+        
+    pro_h_all, con_h_all = get_corners_stats(df_h_all, team_home)
+    pro_a_all, con_a_all = get_corners_stats(df_a_all, team_away)
+    
+    # Média Ponderada: Mandante (Casa) -> 30% Geral, 40% Casa, 30% Últimos 5
+    peso_pro_h = (pro_h_all.mean()*0.3) + (df_h['HC'].mean()*0.4) + (pro_h_all.tail(5).mean()*0.3)
+    peso_con_a = (con_a_all.mean()*0.3) + (df_a['HC'].mean()*0.4) + (con_a_all.tail(5).mean()*0.3) # O visitante sofre HC do mandante
+    exp_h = (peso_pro_h + peso_con_a) / 2
+    
+    # Média Ponderada: Visitante (Fora) -> 30% Geral, 40% Fora, 30% Últimos 5
+    peso_pro_a = (pro_a_all.mean()*0.3) + (df_a['AC'].mean()*0.4) + (pro_a_all.tail(5).mean()*0.3)
+    peso_con_h = (con_h_all.mean()*0.3) + (df_h['AC'].mean()*0.4) + (con_h_all.tail(5).mean()*0.3) # O mandante sofre AC do visitante
+    exp_a = (peso_pro_a + peso_con_h) / 2
+    
+    total_exp = exp_h + exp_a
+    total_exp_ht = total_exp * 0.45 # 45% dos cantos saem no HT em média
+    
+    # Probabilidades de Cantos Seguras (FT) e HT
     probs = {
-        "Over 6.5": poisson.sf(6, total_exp) * 100,
-        "Over 7.5": poisson.sf(7, total_exp) * 100,
-        "Over 8.5": poisson.sf(8, total_exp) * 100,
-        "Over 9.5": poisson.sf(9, total_exp) * 100,
-        "Over 10.5": poisson.sf(10, total_exp) * 100,
-        "Over 11.5": poisson.sf(11, total_exp) * 100
+        "Over 6.5 FT": poisson.sf(6, total_exp) * 100,
+        "Over 7.5 FT": poisson.sf(7, total_exp) * 100,
+        "Over 8.5 FT": poisson.sf(8, total_exp) * 100,
+        "Over 3.5 HT": poisson.sf(3, total_exp_ht) * 100,
+        "Over 4.5 HT": poisson.sf(4, total_exp_ht) * 100
     }
     return total_exp, probs
 
@@ -506,7 +530,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.6 (Fixed)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V71.1 (Engine Fix)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -522,12 +546,11 @@ if not df_recent.empty:
         
     menu = st.sidebar.radio("Selecione:", ["🎯 Grade do Dia", "⭐ Meus Favoritos", "🚩 Grade de Cantos", "📊 Winrate Cantos", "📊 Winrate Gols", "🏆 Classificação", "⚔️ Simulador Manual", "🎫 Bilhetes Prontos", "🚀 Alavancagem", "🔎 Analisador de Times", "🌍 Raio-X Ligas"])
     
-    # 1. GRADE DO DIA (COM BOTÃO FAVORITAR)
+    # 1. GRADE DO DIA
     if menu == "🎯 Grade do Dia":
         st.header("🎯 Grade do Dia")
         if not df_today.empty:
             
-            # --- NOVO: BOTÕES VISUAIS DO SCANNER ---
             st.markdown("### 🔎 Rastreador de Oportunidades")
             st.markdown("<p style='color: #8b949e; font-size: 14px;'>Selecione um mercado para filtrar os melhores jogos do dia.</p>", unsafe_allow_html=True)
             
@@ -567,7 +590,7 @@ if not df_recent.empty:
                         if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 80
                         elif market_filter == "Over 2.5 FT": match_val = probs['Over25']*100; threshold = 60
                         elif market_filter == "BTTS (Ambas Marcam)": match_val = probs['BTTS']*100; threshold = 60
-                        elif market_filter == "Under 3.5 FT": match_val = probs['Under35']*100; threshold = 80
+                        elif market_filter == "Under 3.5 FT": match_val = probs['Under35']*100; threshold = 85 # NOVO: Under mais rigoroso
                         elif market_filter == "Over 0.5 HT": match_val = probs['Over05HT']*100; threshold = 80
                         elif market_filter == "Casa Vence": match_val = probs['HomeWin']*100; threshold = 50
                         elif market_filter == "Visitante Vence": match_val = probs['AwayWin']*100; threshold = 50
@@ -596,7 +619,6 @@ if not df_recent.empty:
                     else:
                         st.info(f"Nenhum jogo encontrado com alta probabilidade para {market_filter} hoje.")
             st.divider()
-            # --------------------------------------
 
             st.subheader("🕵️ Analisador Detalhado (Jogo Único)")
             jogos_hoje = [f"{row['Hora']} ⏰ {row['HomeTeam']} x {row['AwayTeam']}" for i, row in df_today.iterrows()]
@@ -606,7 +628,6 @@ if not df_recent.empty:
             times = clean_selection.split(" x ")
             home_sel, away_sel = times[0], times[1]
             
-            # --- LÓGICA DE FAVORITOS ---
             fav_id = f"{home_sel} vs {away_sel}"
             is_fav = fav_id in [f['ID'] for f in st.session_state['favoritos']]
             
@@ -620,7 +641,6 @@ if not df_recent.empty:
                     if st.button("⭐ Adicionar aos Favoritos"):
                         st.session_state['favoritos'].append({'ID': fav_id, 'Home': home_sel, 'Away': away_sel})
                         st.rerun()
-            # ---------------------------
             
             liga_match = None
             try: liga_match = df_recent[df_recent['HomeTeam'] == home_sel]['League_Custom'].mode()[0]
@@ -645,7 +665,6 @@ if not df_recent.empty:
                     if must_win_msg: st.warning(must_win_msg)
                 except: pass
 
-            # --- USO DO MOTOR HÍBRIDO ---
             hybrid_probs, xg_h, xg_a, (xg_h_ht, xg_a_ht) = calcular_probabilidades_hibridas(df_recent, liga_match, home_sel, away_sel)
             exp_cantos, probs_cantos = calcular_cantos_esperados_e_probs(df_recent, home_sel, away_sel)
             
@@ -727,8 +746,9 @@ if not df_recent.empty:
         if df_today.empty:
             st.info("Sem jogos hoje.")
         else:
-            linha_opcoes = ["Over 6.5", "Over 7.5", "Over 8.5", "Over 9.5", "Over 10.5", "Over 11.5", "Over 12.5"]
-            linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=3) # Default 9.5
+            # NOVO: Apenas linhas seguras e opções HT
+            linha_opcoes = ["Over 6.5 FT", "Over 7.5 FT", "Over 8.5 FT", "Over 3.5 HT", "Over 4.5 HT"]
+            linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=1)
 
             lista_cantos = []
             for i, row in df_today.iterrows():
@@ -787,11 +807,11 @@ if not df_recent.empty:
         if games.empty:
             st.warning("Sem jogos finalizados nesta data.")
         else:
+            # NOVO: Atualizado para as linhas mais seguras
             stats = {
-                'Over 8.5': {'total': 0, 'green': 0},
-                'Over 9.5': {'total': 0, 'green': 0},
-                'Over 10.5': {'total': 0, 'green': 0},
-                'Over 11.5': {'total': 0, 'green': 0}
+                'Over 6.5 FT': {'total': 0, 'green': 0},
+                'Over 7.5 FT': {'total': 0, 'green': 0},
+                'Over 8.5 FT': {'total': 0, 'green': 0}
             }
             results_cantos = []
             
@@ -800,34 +820,29 @@ if not df_recent.empty:
                 prog_bar.progress(min((i+1)*step, 1.0))
                 total_corners = row['HC'] + row['AC']
                 h, a = row['HomeTeam'], row['AwayTeam']
-                exp_cantos, _ = calcular_cantos_esperados_e_probs(df_recent, h, a)
+                exp_cantos, probs = calcular_cantos_esperados_e_probs(df_recent, h, a)
                 
-                # Critério de Entrada e Log
-                if exp_cantos >= 9.0:
-                    stats['Over 8.5']['total'] += 1
+                # Simulando entrada usando a nova matemática de previsão
+                if probs.get('Over 6.5 FT', 0) >= 70:
+                    stats['Over 6.5 FT']['total'] += 1
+                    res = "✅" if total_corners > 6.5 else "🔻"
+                    if total_corners > 6.5: stats['Over 6.5 FT']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 6.5', 'Res':res, 'Cantos':total_corners})
+                    
+                if probs.get('Over 7.5 FT', 0) >= 65:
+                    stats['Over 7.5 FT']['total'] += 1
+                    res = "✅" if total_corners > 7.5 else "🔻"
+                    if total_corners > 7.5: stats['Over 7.5 FT']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 7.5', 'Res':res, 'Cantos':total_corners})
+                    
+                if probs.get('Over 8.5 FT', 0) >= 60:
+                    stats['Over 8.5 FT']['total'] += 1
                     res = "✅" if total_corners > 8.5 else "🔻"
-                    if total_corners > 8.5: stats['Over 8.5']['green'] += 1
+                    if total_corners > 8.5: stats['Over 8.5 FT']['green'] += 1
                     results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 8.5', 'Res':res, 'Cantos':total_corners})
-                    
-                    stats['Over 9.5']['total'] += 1
-                    res = "✅" if total_corners > 9.5 else "🔻"
-                    if total_corners > 9.5: stats['Over 9.5']['green'] += 1
-                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 9.5', 'Res':res, 'Cantos':total_corners})
-                    
-                if exp_cantos >= 10.5:
-                    stats['Over 10.5']['total'] += 1
-                    res = "✅" if total_corners > 10.5 else "🔻"
-                    if total_corners > 10.5: stats['Over 10.5']['green'] += 1
-                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 10.5', 'Res':res, 'Cantos':total_corners})
-                    
-                    stats['Over 11.5']['total'] += 1
-                    res = "✅" if total_corners > 11.5 else "🔻"
-                    if total_corners > 11.5: stats['Over 11.5']['green'] += 1
-                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 11.5', 'Res':res, 'Cantos':total_corners})
             
             prog_bar.empty()
             
-            # --- RESTAURADO: PERFORMANCE GERAL ---
             total_tries = sum([v['total'] for v in stats.values()])
             total_wins = sum([v['green'] for v in stats.values()])
             wr_total = (total_wins / total_tries * 100) if total_tries > 0 else 0
@@ -838,10 +853,8 @@ if not df_recent.empty:
             c2.metric("Greens", total_wins)
             c3.metric("Winrate", f"{wr_total:.1f}%")
             st.divider()
-            # -------------------------------------
             
-            # Cards de Resumo
-            cols = st.columns(4)
+            cols = st.columns(3)
             idx = 0
             for k, v in stats.items():
                 wr = (v['green'] / v['total'] * 100) if v['total'] > 0 else 0
@@ -850,11 +863,10 @@ if not df_recent.empty:
                     st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{k}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{v['green']}/{v['total']}</div></div>""", unsafe_allow_html=True)
                 idx += 1
             
-            # Tabela Detalhada
             with st.expander("📝 Detalhes dos Jogos (Cantos)"):
                 st.dataframe(pd.DataFrame(results_cantos), use_container_width=True)
 
-    # 5. WINRATE GOLS (DETALHADA RESTAURADA)
+    # 5. WINRATE GOLS
     elif menu == "📊 Winrate Gols":
         st.header("📊 Assertividade do Robô (Backtest Híbrido)")
         last_db_date = df_recent['Date'].max()
@@ -863,7 +875,6 @@ if not df_recent.empty:
         col_date, _ = st.columns([1, 3])
         with col_date: selected_date = st.date_input("Selecione a Data:", value=default_date)
         
-        # Função para calcular e mostrar detalhes
         def calculate_winrate(start, end):
             mask = (df_recent['Date'] >= pd.Timestamp(start)) & (df_recent['Date'] <= pd.Timestamp(end) + pd.Timedelta(hours=23, minutes=59))
             games = df_recent.loc[mask]
@@ -906,7 +917,8 @@ if not df_recent.empty:
                     if (row['FTHG'] > 0 and row['FTAG'] > 0): market_stats['BTTS']['green'] += 1
                     results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'BTTS', 'Res':res, 'Placar':placar_final})
                     
-                if probs['Under35'] >= 0.80:
+                # NOVO: Trava Anti-Over em ação no backtest
+                if probs['Under35'] >= 0.85:
                     market_stats['Under 3.5 FT']['total'] += 1
                     res = "✅" if (row['FTHG'] + row['FTAG']) < 3.5 else "🔻"
                     if (row['FTHG'] + row['FTAG']) < 3.5: market_stats['Under 3.5 FT']['green'] += 1
@@ -914,7 +926,6 @@ if not df_recent.empty:
                     
             prog_bar.empty()
             
-            # --- RESTAURADO: PERFORMANCE GERAL ---
             total_tries = sum([v['total'] for v in market_stats.values()])
             total_wins = sum([v['green'] for v in market_stats.values()])
             wr_total = (total_wins / total_tries * 100) if total_tries > 0 else 0
@@ -925,9 +936,7 @@ if not df_recent.empty:
             c2.metric("Greens", total_wins)
             c3.metric("Winrate", f"{wr_total:.1f}%")
             st.divider()
-            # -------------------------------------
             
-            # Cards
             cols = st.columns(5)
             i=0
             for m, d in market_stats.items():
@@ -938,7 +947,6 @@ if not df_recent.empty:
                     st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{m}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{g}/{t}</div></div>""", unsafe_allow_html=True)
                 i+=1
                 
-            # Tabela Detalhada (RESTAURADA)
             with st.expander("📝 Detalhes dos Jogos (Gols)"):
                 st.dataframe(pd.DataFrame(results_gols), use_container_width=True)
 
@@ -1010,7 +1018,7 @@ if not df_recent.empty:
                     st.subheader("🚩 Probabilidades de Escanteios")
                     c1, c2 = st.columns(2)
                     c1.metric("Cantos (Média Esp.)", f"{exp_cantos:.1f}")
-                    c2.metric("Over 9.5 Cantos", f"{probs_cantos['Over 9.5']:.1f}%")
+                    c2.metric("Over 8.5 Cantos", f"{probs_cantos['Over 8.5 FT']:.1f}%")
 
     # 8. BILHETES
     elif menu == "🎫 Bilhetes Prontos":
