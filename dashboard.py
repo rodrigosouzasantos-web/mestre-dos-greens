@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.10 (Cumulative Fix)",
+    page_title="Mestre dos Greens PRO - V71.2 (O1.5 Threshold 75%)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -466,7 +466,7 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
         "AwayWin": math_probs['AwayWin']
     }
     
-    # --- NOVO: TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
+    # --- TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
     total_xg = xg_h + xg_a
     if total_xg > 2.65:
         final_probs["Under35"] = final_probs["Under35"] * 0.75 
@@ -526,7 +526,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.10 (Cumulative Fix)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V71.2 (O1.5 Threshold 75%)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -583,7 +583,8 @@ if not df_recent.empty:
                         match_val = 0
                         threshold = 0
                         
-                        if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 80
+                        # --- ATUALIZADO: Over 1.5 agora busca 75% ---
+                        if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 75
                         elif market_filter == "Over 2.5 FT": match_val = probs['Over25']*100; threshold = 60
                         elif market_filter == "BTTS (Ambas Marcam)": match_val = probs['BTTS']*100; threshold = 60
                         elif market_filter == "Under 3.5 FT": match_val = probs['Under35']*100; threshold = 85 
@@ -695,7 +696,7 @@ if not df_recent.empty:
                         else: st.error(f"🔴 {label}: {value:.1f}%") 
                     
                     visual_metric("Over 0.5 HT", hybrid_probs['Over05HT']*100, 80)
-                    visual_metric("Over 1.5 FT", hybrid_probs['Over15']*100, 80)
+                    visual_metric("Over 1.5 FT", hybrid_probs['Over15']*100, 75) # Atualizado visual também
                     visual_metric("Over 2.5 FT", hybrid_probs['Over25']*100, 60)
                     visual_metric("BTTS", hybrid_probs['BTTS']*100, 60)
                     visual_metric("Under 3.5 FT", hybrid_probs['Under35']*100, 80)
@@ -940,7 +941,8 @@ if not df_recent.empty:
                     if (row['HTHG'] + row['HTAG']) > 0: market_stats['Over 0.5 HT']['green'] += 1
                     results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'0.5 HT', 'Res':res, 'Placar':placar_final})
                     
-                if probs['Over15'] >= 0.80:
+                # --- ATUALIZADO NO BACKTEST: O1.5 agora usa 75% ---
+                if probs['Over15'] >= 0.75:
                     market_stats['Over 1.5 FT']['total'] += 1
                     res = "✅" if (row['FTHG'] + row['FTAG']) > 1.5 else "🔻"
                     if (row['FTHG'] + row['FTAG']) > 1.5: market_stats['Over 1.5 FT']['green'] += 1
