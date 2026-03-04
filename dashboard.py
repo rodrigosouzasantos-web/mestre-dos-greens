@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.8 (Corners 2.5 HT)",
+    page_title="Mestre dos Greens PRO - V70.9 (Corners HT Winrate)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -466,7 +466,7 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
         "AwayWin": math_probs['AwayWin']
     }
     
-    # --- NOVO: TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
+    # --- TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
     total_xg = xg_h + xg_a
     if total_xg > 2.65:
         final_probs["Under35"] = final_probs["Under35"] * 0.75 
@@ -501,7 +501,6 @@ def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     total_exp = exp_h + exp_a
     total_exp_ht = total_exp * 0.45 
     
-    # ATUALIZADO: Incluído a linha 2.5 HT
     probs = {
         "Over 6.5 FT": poisson.sf(6, total_exp) * 100,
         "Over 7.5 FT": poisson.sf(7, total_exp) * 100,
@@ -527,7 +526,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.8 (Corners 2.5 HT)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.9 (Corners HT Winrate)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -743,7 +742,6 @@ if not df_recent.empty:
         if df_today.empty:
             st.info("Sem jogos hoje.")
         else:
-            # NOVO: Incluído a opção Over 2.5 HT
             linha_opcoes = ["Over 6.5 FT", "Over 7.5 FT", "Over 8.5 FT", "Over 2.5 HT", "Over 3.5 HT", "Over 4.5 HT"]
             linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=1)
 
@@ -804,10 +802,14 @@ if not df_recent.empty:
         if games.empty:
             st.warning("Sem jogos finalizados nesta data.")
         else:
+            # NOVO: Inclui métricas de HT no Backtest
             stats = {
                 'Over 6.5 FT': {'total': 0, 'green': 0},
                 'Over 7.5 FT': {'total': 0, 'green': 0},
-                'Over 8.5 FT': {'total': 0, 'green': 0}
+                'Over 8.5 FT': {'total': 0, 'green': 0},
+                'Over 2.5 HT': {'total': 0, 'green': 0},
+                'Over 3.5 HT': {'total': 0, 'green': 0},
+                'Over 4.5 HT': {'total': 0, 'green': 0}
             }
             results_cantos = []
             
@@ -815,26 +817,49 @@ if not df_recent.empty:
             for i, row in games.iterrows():
                 prog_bar.progress(min((i+1)*step, 1.0))
                 total_corners = row['HC'] + row['AC']
+                # Estimativa para o backtest: como o CSV não tem cantos HT exatos, usamos a proporção média global de 45%
+                total_corners_ht = total_corners * 0.45 
+                
                 h, a = row['HomeTeam'], row['AwayTeam']
                 exp_cantos, probs = calcular_cantos_esperados_e_probs(df_recent, h, a)
                 
+                # Sinais FT
                 if probs.get('Over 6.5 FT', 0) >= 70:
                     stats['Over 6.5 FT']['total'] += 1
                     res = "✅" if total_corners > 6.5 else "🔻"
                     if total_corners > 6.5: stats['Over 6.5 FT']['green'] += 1
-                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 6.5', 'Res':res, 'Cantos':total_corners})
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 6.5 FT', 'Res':res, 'Cantos':total_corners})
                     
                 if probs.get('Over 7.5 FT', 0) >= 65:
                     stats['Over 7.5 FT']['total'] += 1
                     res = "✅" if total_corners > 7.5 else "🔻"
                     if total_corners > 7.5: stats['Over 7.5 FT']['green'] += 1
-                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 7.5', 'Res':res, 'Cantos':total_corners})
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 7.5 FT', 'Res':res, 'Cantos':total_corners})
                     
                 if probs.get('Over 8.5 FT', 0) >= 60:
                     stats['Over 8.5 FT']['total'] += 1
                     res = "✅" if total_corners > 8.5 else "🔻"
                     if total_corners > 8.5: stats['Over 8.5 FT']['green'] += 1
-                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 8.5', 'Res':res, 'Cantos':total_corners})
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 8.5 FT', 'Res':res, 'Cantos':total_corners})
+
+                # Sinais HT
+                if probs.get('Over 2.5 HT', 0) >= 70:
+                    stats['Over 2.5 HT']['total'] += 1
+                    res = "✅" if total_corners_ht > 2.5 else "🔻"
+                    if total_corners_ht > 2.5: stats['Over 2.5 HT']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 2.5 HT', 'Res':res, 'Cantos':f"~{total_corners_ht:.1f}"})
+
+                if probs.get('Over 3.5 HT', 0) >= 60:
+                    stats['Over 3.5 HT']['total'] += 1
+                    res = "✅" if total_corners_ht > 3.5 else "🔻"
+                    if total_corners_ht > 3.5: stats['Over 3.5 HT']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 3.5 HT', 'Res':res, 'Cantos':f"~{total_corners_ht:.1f}"})
+                    
+                if probs.get('Over 4.5 HT', 0) >= 50:
+                    stats['Over 4.5 HT']['total'] += 1
+                    res = "✅" if total_corners_ht > 4.5 else "🔻"
+                    if total_corners_ht > 4.5: stats['Over 4.5 HT']['green'] += 1
+                    results_cantos.append({'Jogo':f"{h}x{a}", 'Mercado':'Over 4.5 HT', 'Res':res, 'Cantos':f"~{total_corners_ht:.1f}"})
             
             prog_bar.empty()
             
@@ -849,15 +874,33 @@ if not df_recent.empty:
             c3.metric("Winrate", f"{wr_total:.1f}%")
             st.divider()
             
-            cols = st.columns(3)
+            # Cards FT
+            st.markdown("#### Mercado FT (Tempo Integral)")
+            cols_ft = st.columns(3)
             idx = 0
-            for k, v in stats.items():
+            for k in ['Over 6.5 FT', 'Over 7.5 FT', 'Over 8.5 FT']:
+                v = stats[k]
                 wr = (v['green'] / v['total'] * 100) if v['total'] > 0 else 0
                 color = "#2ea043" if wr >= 70 else "#f1c40f" if wr >= 50 else "#da3633"
-                with cols[idx]:
+                with cols_ft[idx]:
                     st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{k}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{v['green']}/{v['total']}</div></div>""", unsafe_allow_html=True)
                 idx += 1
             
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            # Cards HT
+            st.markdown("#### Mercado HT (Primeiro Tempo)")
+            cols_ht = st.columns(3)
+            idx = 0
+            for k in ['Over 2.5 HT', 'Over 3.5 HT', 'Over 4.5 HT']:
+                v = stats[k]
+                wr = (v['green'] / v['total'] * 100) if v['total'] > 0 else 0
+                color = "#2ea043" if wr >= 70 else "#f1c40f" if wr >= 50 else "#da3633"
+                with cols_ht[idx]:
+                    st.markdown(f"""<div class="metric-card"><div style="color:#8b949e">{k}</div><div style="font-size:22px;font-weight:bold;color:{color}">{wr:.1f}%</div><div style="font-size:12px">{v['green']}/{v['total']}</div></div>""", unsafe_allow_html=True)
+                idx += 1
+            
+            st.markdown("<br>", unsafe_allow_html=True)
             with st.expander("📝 Detalhes dos Jogos (Cantos)"):
                 st.dataframe(pd.DataFrame(results_cantos), use_container_width=True)
 
