@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.7 (Safe Corners)",
+    page_title="Mestre dos Greens PRO - V70.8 (Corners 2.5 HT)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -444,7 +444,7 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
     
     _, math_probs, _ = gerar_matriz_poisson(xg_h, xg_a)
 
-    # Matemática para HT (Novo cálculo baseado em xG de HT)
+    # Matemática para HT
     xg_h_ht, xg_a_ht, _, _ = calcular_xg_ponderado(df_recent, league, home, away, 'HTHG', 'HTAG')
     if xg_h_ht is not None:
         math_prob_ht = 1 - (poisson.pmf(0, xg_h_ht) * poisson.pmf(0, xg_a_ht))
@@ -467,10 +467,9 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
     }
     
     # --- NOVO: TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
-    # Se a expectativa matemática total for alta (tendência de quase 3 gols), penaliza o Under 3.5
     total_xg = xg_h + xg_a
     if total_xg > 2.65:
-        final_probs["Under35"] = final_probs["Under35"] * 0.75 # Reduz a chance em 25%
+        final_probs["Under35"] = final_probs["Under35"] * 0.75 
     
     return final_probs, xg_h, xg_a, (xg_h_ht, xg_a_ht)
 
@@ -483,7 +482,6 @@ def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     
     if df_h.empty or df_a.empty or df_h_all.empty or df_a_all.empty: return 0.0, {}
     
-    # Função auxiliar para capturar todos os cantos a favor e contra de um time, independente de ser casa ou fora
     def get_corners_stats(df_full, team):
         pro = df_full.apply(lambda x: x['HC'] if x['HomeTeam'] == team else x['AC'], axis=1)
         con = df_full.apply(lambda x: x['AC'] if x['HomeTeam'] == team else x['HC'], axis=1)
@@ -492,24 +490,23 @@ def calcular_cantos_esperados_e_probs(df_historico, team_home, team_away):
     pro_h_all, con_h_all = get_corners_stats(df_h_all, team_home)
     pro_a_all, con_a_all = get_corners_stats(df_a_all, team_away)
     
-    # Média Ponderada: Mandante (Casa) -> 30% Geral, 40% Casa, 30% Últimos 5
     peso_pro_h = (pro_h_all.mean()*0.3) + (df_h['HC'].mean()*0.4) + (pro_h_all.tail(5).mean()*0.3)
-    peso_con_a = (con_a_all.mean()*0.3) + (df_a['HC'].mean()*0.4) + (con_a_all.tail(5).mean()*0.3) # O visitante sofre HC do mandante
+    peso_con_a = (con_a_all.mean()*0.3) + (df_a['HC'].mean()*0.4) + (con_a_all.tail(5).mean()*0.3)
     exp_h = (peso_pro_h + peso_con_a) / 2
     
-    # Média Ponderada: Visitante (Fora) -> 30% Geral, 40% Fora, 30% Últimos 5
     peso_pro_a = (pro_a_all.mean()*0.3) + (df_a['AC'].mean()*0.4) + (pro_a_all.tail(5).mean()*0.3)
-    peso_con_h = (con_h_all.mean()*0.3) + (df_h['AC'].mean()*0.4) + (con_h_all.tail(5).mean()*0.3) # O mandante sofre AC do visitante
+    peso_con_h = (con_h_all.mean()*0.3) + (df_h['AC'].mean()*0.4) + (con_h_all.tail(5).mean()*0.3)
     exp_a = (peso_pro_a + peso_con_h) / 2
     
     total_exp = exp_h + exp_a
-    total_exp_ht = total_exp * 0.45 # 45% dos cantos saem no HT em média
+    total_exp_ht = total_exp * 0.45 
     
-    # Probabilidades de Cantos Seguras (FT) e HT
+    # ATUALIZADO: Incluído a linha 2.5 HT
     probs = {
         "Over 6.5 FT": poisson.sf(6, total_exp) * 100,
         "Over 7.5 FT": poisson.sf(7, total_exp) * 100,
         "Over 8.5 FT": poisson.sf(8, total_exp) * 100,
+        "Over 2.5 HT": poisson.sf(2, total_exp_ht) * 100,
         "Over 3.5 HT": poisson.sf(3, total_exp_ht) * 100,
         "Over 4.5 HT": poisson.sf(4, total_exp_ht) * 100
     }
@@ -530,7 +527,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V71.1 (Engine Fix)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.8 (Corners 2.5 HT)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -590,7 +587,7 @@ if not df_recent.empty:
                         if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 80
                         elif market_filter == "Over 2.5 FT": match_val = probs['Over25']*100; threshold = 60
                         elif market_filter == "BTTS (Ambas Marcam)": match_val = probs['BTTS']*100; threshold = 60
-                        elif market_filter == "Under 3.5 FT": match_val = probs['Under35']*100; threshold = 85 # NOVO: Under mais rigoroso
+                        elif market_filter == "Under 3.5 FT": match_val = probs['Under35']*100; threshold = 85 
                         elif market_filter == "Over 0.5 HT": match_val = probs['Over05HT']*100; threshold = 80
                         elif market_filter == "Casa Vence": match_val = probs['HomeWin']*100; threshold = 50
                         elif market_filter == "Visitante Vence": match_val = probs['AwayWin']*100; threshold = 50
@@ -746,8 +743,8 @@ if not df_recent.empty:
         if df_today.empty:
             st.info("Sem jogos hoje.")
         else:
-            # NOVO: Apenas linhas seguras e opções HT
-            linha_opcoes = ["Over 6.5 FT", "Over 7.5 FT", "Over 8.5 FT", "Over 3.5 HT", "Over 4.5 HT"]
+            # NOVO: Incluído a opção Over 2.5 HT
+            linha_opcoes = ["Over 6.5 FT", "Over 7.5 FT", "Over 8.5 FT", "Over 2.5 HT", "Over 3.5 HT", "Over 4.5 HT"]
             linha_escolhida = st.selectbox("🎯 Selecione a Linha de Cantos para filtrar:", linha_opcoes, index=1)
 
             lista_cantos = []
@@ -807,7 +804,6 @@ if not df_recent.empty:
         if games.empty:
             st.warning("Sem jogos finalizados nesta data.")
         else:
-            # NOVO: Atualizado para as linhas mais seguras
             stats = {
                 'Over 6.5 FT': {'total': 0, 'green': 0},
                 'Over 7.5 FT': {'total': 0, 'green': 0},
@@ -822,7 +818,6 @@ if not df_recent.empty:
                 h, a = row['HomeTeam'], row['AwayTeam']
                 exp_cantos, probs = calcular_cantos_esperados_e_probs(df_recent, h, a)
                 
-                # Simulando entrada usando a nova matemática de previsão
                 if probs.get('Over 6.5 FT', 0) >= 70:
                     stats['Over 6.5 FT']['total'] += 1
                     res = "✅" if total_corners > 6.5 else "🔻"
@@ -917,7 +912,6 @@ if not df_recent.empty:
                     if (row['FTHG'] > 0 and row['FTAG'] > 0): market_stats['BTTS']['green'] += 1
                     results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'BTTS', 'Res':res, 'Placar':placar_final})
                     
-                # NOVO: Trava Anti-Over em ação no backtest
                 if probs['Under35'] >= 0.85:
                     market_stats['Under 3.5 FT']['total'] += 1
                     res = "✅" if (row['FTHG'] + row['FTAG']) < 3.5 else "🔻"
