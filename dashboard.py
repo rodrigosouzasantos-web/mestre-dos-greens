@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V70.9 (Corners HT Winrate)",
+    page_title="Mestre dos Greens PRO - V70.10 (Cumulative Fix)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -466,7 +466,7 @@ def calcular_probabilidades_hibridas(df_recent, league, home, away):
         "AwayWin": math_probs['AwayWin']
     }
     
-    # --- TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
+    # --- NOVO: TRAVA ANTI-OVER PARA O UNDER 3.5 FT ---
     total_xg = xg_h + xg_a
     if total_xg > 2.65:
         final_probs["Under35"] = final_probs["Under35"] * 0.75 
@@ -526,7 +526,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V70.9 (Corners HT Winrate)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V70.10 (Cumulative Fix)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -794,15 +794,17 @@ if not df_recent.empty:
         last_db_date = df_recent['Date'].max()
         yesterday = pd.Timestamp.now().normalize() - pd.Timedelta(days=1)
         default_date = yesterday if yesterday <= last_db_date else last_db_date
-        sel_date = st.date_input("Data:", value=default_date)
+        col_date, _ = st.columns([1, 3])
+        with col_date: selected_date = st.date_input("Data:", value=default_date)
         
-        mask = (df_recent['Date'] >= pd.Timestamp(sel_date)) & (df_recent['Date'] <= pd.Timestamp(sel_date) + pd.Timedelta(hours=23, minutes=59))
-        games = df_recent.loc[mask]
-        
-        if games.empty:
-            st.warning("Sem jogos finalizados nesta data.")
-        else:
-            # NOVO: Inclui métricas de HT no Backtest
+        def calculate_winrate_cantos(start, end):
+            mask = (df_recent['Date'] >= pd.Timestamp(start)) & (df_recent['Date'] <= pd.Timestamp(end) + pd.Timedelta(hours=23, minutes=59))
+            games = df_recent.loc[mask]
+            
+            if games.empty:
+                st.warning("Sem jogos finalizados nesta data.")
+                return
+                
             stats = {
                 'Over 6.5 FT': {'total': 0, 'green': 0},
                 'Over 7.5 FT': {'total': 0, 'green': 0},
@@ -817,7 +819,6 @@ if not df_recent.empty:
             for i, row in games.iterrows():
                 prog_bar.progress(min((i+1)*step, 1.0))
                 total_corners = row['HC'] + row['AC']
-                # Estimativa para o backtest: como o CSV não tem cantos HT exatos, usamos a proporção média global de 45%
                 total_corners_ht = total_corners * 0.45 
                 
                 h, a = row['HomeTeam'], row['AwayTeam']
@@ -874,7 +875,6 @@ if not df_recent.empty:
             c3.metric("Winrate", f"{wr_total:.1f}%")
             st.divider()
             
-            # Cards FT
             st.markdown("#### Mercado FT (Tempo Integral)")
             cols_ft = st.columns(3)
             idx = 0
@@ -888,7 +888,6 @@ if not df_recent.empty:
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # Cards HT
             st.markdown("#### Mercado HT (Primeiro Tempo)")
             cols_ht = st.columns(3)
             idx = 0
@@ -903,6 +902,10 @@ if not df_recent.empty:
             st.markdown("<br>", unsafe_allow_html=True)
             with st.expander("📝 Detalhes dos Jogos (Cantos)"):
                 st.dataframe(pd.DataFrame(results_cantos), use_container_width=True)
+
+        tab_dia, tab_mes = st.tabs([f"📅 Resultados do Dia", "🗓️ Acumulado"])
+        with tab_dia: calculate_winrate_cantos(selected_date, selected_date)
+        with tab_mes: first_day = selected_date.replace(day=1); calculate_winrate_cantos(first_day, selected_date)
 
     # 5. WINRATE GOLS
     elif menu == "📊 Winrate Gols":
