@@ -434,8 +434,8 @@ def gerar_matriz_poisson(xg_home, xg_away):
             if h > 0 and a > 0: probs_dict["BTTS"] += prob
         matrix.append(row)
     
-    # ATUALIZADO: Mostrando Top 8 Placares
-    top_scores = sorted(top_scores, key=lambda x: x['Prob'], reverse=True)[:8]
+    # ATUALIZADO: Mostrando Top 10 Placares
+    top_scores = sorted(top_scores, key=lambda x: x['Prob'], reverse=True)[:10]
     return matrix, probs_dict, top_scores
 
 # 4. CÁLCULO FINAL (O HÍBRIDO)
