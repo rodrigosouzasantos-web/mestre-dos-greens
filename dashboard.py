@@ -19,7 +19,7 @@ except:
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(
-    page_title="Mestre dos Greens PRO - V71.2 (O1.5 Threshold 75%)",
+    page_title="Mestre dos Greens PRO - V71.3 (Cumulative & Scores)",
     page_icon=icon_page,
     layout="wide",
     initial_sidebar_state="expanded"
@@ -433,7 +433,9 @@ def gerar_matriz_poisson(xg_home, xg_away):
             if total_goals < 3.5: probs_dict["Under35"] += prob
             if h > 0 and a > 0: probs_dict["BTTS"] += prob
         matrix.append(row)
-    top_scores = sorted(top_scores, key=lambda x: x['Prob'], reverse=True)[:5]
+    
+    # ATUALIZADO: Mostrando Top 8 Placares
+    top_scores = sorted(top_scores, key=lambda x: x['Prob'], reverse=True)[:8]
     return matrix, probs_dict, top_scores
 
 # 4. CÁLCULO FINAL (O HÍBRIDO)
@@ -526,7 +528,7 @@ def exibir_matriz_visual(matriz, home_name, away_name):
 # ==============================================================================
 # APP PRINCIPAL
 # ==============================================================================
-st.title("🧙‍♂️ Mestre dos Greens PRO - V71.2 (O1.5 Threshold 75%)")
+st.title("🧙‍♂️ Mestre dos Greens PRO - V71.3 (Cumulative & Scores)")
 
 df_recent, df_today, full_df, df_current_season = load_data()
 
@@ -583,7 +585,6 @@ if not df_recent.empty:
                         match_val = 0
                         threshold = 0
                         
-                        # --- ATUALIZADO: Over 1.5 agora busca 75% ---
                         if market_filter == "Over 1.5 FT": match_val = probs['Over15']*100; threshold = 75
                         elif market_filter == "Over 2.5 FT": match_val = probs['Over25']*100; threshold = 60
                         elif market_filter == "BTTS (Ambas Marcam)": match_val = probs['BTTS']*100; threshold = 60
@@ -684,9 +685,17 @@ if not df_recent.empty:
                         enviar_telegram(msg)
                     if st.button("📋 Ver Top Placares", key="btn_grade"):
                         st.subheader("Placares Mais Prováveis (Poisson)")
+                        # ATUALIZADO: Layout de placares aprimorado
                         for score in top_scores:
                             odd_j = get_odd_justa(score['Prob'])
-                            st.markdown(f"""<div class="placar-row"><span class="placar-score">{score['Placar']}</span><span class="placar-prob">{score['Prob']:.1f}%</span><span class="placar-odd">@{odd_j:.2f}</span></div>""", unsafe_allow_html=True)
+                            hot_icon = "🔥" if score['Prob'] >= 10.0 else "🎯"
+                            st.markdown(f"""
+                            <div class="placar-row" style="border-left-color: {'#2ea043' if score['Prob'] >= 10.0 else '#f1c40f'};">
+                                <span class="placar-score">{hot_icon} {score['Placar']}</span>
+                                <span class="placar-prob" style="color: {'#2ea043' if score['Prob'] >= 10.0 else '#f1c40f'};">{score['Prob']:.1f}%</span>
+                                <span class="placar-odd">Odd Justa: @{odd_j:.2f}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
                 with col_probs:
                     st.subheader("📈 Probabilidades Híbridas")
                     def visual_metric(label, value, target):
@@ -696,7 +705,7 @@ if not df_recent.empty:
                         else: st.error(f"🔴 {label}: {value:.1f}%") 
                     
                     visual_metric("Over 0.5 HT", hybrid_probs['Over05HT']*100, 80)
-                    visual_metric("Over 1.5 FT", hybrid_probs['Over15']*100, 75) # Atualizado visual também
+                    visual_metric("Over 1.5 FT", hybrid_probs['Over15']*100, 75) 
                     visual_metric("Over 2.5 FT", hybrid_probs['Over25']*100, 60)
                     visual_metric("BTTS", hybrid_probs['BTTS']*100, 60)
                     visual_metric("Under 3.5 FT", hybrid_probs['Under35']*100, 80)
@@ -941,7 +950,6 @@ if not df_recent.empty:
                     if (row['HTHG'] + row['HTAG']) > 0: market_stats['Over 0.5 HT']['green'] += 1
                     results_gols.append({'Jogo':f"{h}x{a}", 'Mercado':'0.5 HT', 'Res':res, 'Placar':placar_final})
                     
-                # --- ATUALIZADO NO BACKTEST: O1.5 agora usa 75% ---
                 if probs['Over15'] >= 0.75:
                     market_stats['Over 1.5 FT']['total'] += 1
                     res = "✅" if (row['FTHG'] + row['FTAG']) > 1.5 else "🔻"
